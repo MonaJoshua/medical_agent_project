@@ -1,0 +1,92 @@
+# 智能医疗机器人配置文件
+
+# ========== 运行模式 ==========
+# demo: 演示模式（离线分诊、模拟数据）
+# production: 生产模式（调用后端 API）
+mode: demo
+
+# ========== 服务配置 ==========
+backend:
+  url: "http://127.0.0.1:5000"
+  timeout: 30  # 秒
+
+# ========== 关怀模式 ==========
+care_mode:
+  enabled: false  # true: 大字体大按钮模式
+  font_size: 16   # 基础字体大小
+  button_height: 50  # 按钮高度（像素）
+
+# ========== 病人监护仪配置 ==========
+monitor:
+  # 波形显示范围
+  heart_rate_min: 0
+  heart_rate_max: 120
+  # 报警阈值
+  alarm:
+    heart_rate_max: 100
+    spo2_min: 93
+    temp_max: 37.5
+  # 数据刷新间隔（毫秒）
+  refresh_interval: 50
+
+# ========== 智能导诊配置 ==========
+triage:
+  # 演示模式下的响应延迟（毫秒）
+  demo_delay: 500
+  # 科室关键词映射
+  departments:
+    - name: "神经内科"
+      keywords: ["头疼", "头痛", "头晕", "眩晕"]
+    - name: "心内科"
+      keywords: ["胸痛", "胸闷", "心悸", "心慌"]
+    - name: "呼吸内科"
+      keywords: ["咳嗽", "发烧", "发热", "气喘"]
+    - name: "消化内科"
+      keywords: ["胃痛", "腹痛", "腹泻", "恶心"]
+    - name: "骨科"
+      keywords: ["关节痛", "腰痛", "腿痛", "骨折"]
+    - name: "眼科"
+      keywords: ["视力", "眼睛", "眼痛", "红肿"]
+    - name: "口腔科"
+      keywords: ["牙痛", "牙龈", "口腔"]
+    - name: "皮肤科"
+      keywords: ["皮疹", "瘙痒", "红斑", "过敏"]
+    - name: "儿科"
+      keywords: ["儿童", "小孩", "婴儿"]
+    - name: "全科门诊"
+      keywords: []
+
+# ========== 模拟挂号系统配置 ==========
+hospital:
+  departments:
+    - name: "内科"
+      total_slots: 10
+      left_slots: 3
+    - name: "外科"
+      total_slots: 10
+      left_slots: 5
+    - name: "神经内科"
+      total_slots: 8
+      left_slots: 2
+    - name: "骨科"
+      total_slots: 10
+      left_slots: 6
+    - name: "儿科"
+      total_slots: 12
+      left_slots: 4
+    - name: "皮肤科"
+      total_slots: 5
+      left_slots: 1
+
+# ========== 演示模式预置病例 ==========
+demo_cases:
+  - symptoms: "头痛头晕"
+    result: "🏥 建议就诊科室：神经内科\n💡 建议：注意休息，避免劳累，监测血压。"
+  - symptoms: "胸痛胸闷"
+    result: "🏥 建议就诊科室：心内科\n💡 建议：请立即就医，避免剧烈运动。"
+  - symptoms: "发烧咳嗽"
+    result: "🏥 建议就诊科室：呼吸内科\n💡 建议：多喝水，注意体温变化。"
+  - symptoms: "胃痛腹痛"
+    result: "🏥 建议就诊科室：消化内科\n💡 建议：饮食清淡，避免辛辣刺激。"
+  - symptoms: "视力模糊"
+    result: "🏥 建议就诊科室：眼科\n💡 建议：减少用眼，避免长时间看屏幕。"
