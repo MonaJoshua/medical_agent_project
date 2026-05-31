@@ -37,7 +37,8 @@ void ServiceFactory::triage(const QString& symptoms,
 {
     if (m_mode == "demo") {
         // ========== 演示模式：使用离线分诊 ==========
-        qDebug() << "🎮 [演示模式] 离线分诊 - 症状:" << symptoms;
+        fprintf(stderr, "\n========== 演示模式 ==========\n症状: %s\n使用离线分诊\n", symptoms.toUtf8().constData());
+        fflush(stderr);
         
         QString result = OfflineTriage::instance().triage(symptoms);
         
@@ -48,7 +49,8 @@ void ServiceFactory::triage(const QString& symptoms,
     } 
     else {
         // ========== 生产模式：调用后端 API ==========
-        qDebug() << "🏥 [生产模式] 调用后端分诊 - 症状:" << symptoms;
+        fprintf(stderr, "\n========== 生产模式 ==========\n症状: %s\n调用后端 API\n", symptoms.toUtf8().constData());
+        fflush(stderr);
         
         QUrl url(m_backendUrl + "/api/triage");
         QNetworkRequest request(url);

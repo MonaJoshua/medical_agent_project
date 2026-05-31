@@ -1,4 +1,6 @@
 #include "smarttriage.h"
+#include "config.h"
+#include "offline_triage.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -6,10 +8,7 @@
 #include <QNetworkRequest>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonArray>
 #include <QDebug>
-
-const QString HOSPITAL_API = "http://127.0.0.1:5000/api/register";
 
 SmartTriage::SmartTriage(QWidget *parent)
     : QWidget(parent)
@@ -17,13 +16,11 @@ SmartTriage::SmartTriage(QWidget *parent)
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(20);
 
-    // 标题
     QLabel *titleLabel = new QLabel("🤖 AI 智能导诊助手");
     titleLabel->setFont(QFont("", 20, QFont::Bold));
     titleLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(titleLabel);
 
-    // 症状输入区域
     QLabel *symptomLabel = new QLabel("📝 请描述您的症状：");
     symptomLabel->setFont(QFont("", 14));
     mainLayout->addWidget(symptomLabel);
@@ -34,7 +31,6 @@ SmartTriage::SmartTriage(QWidget *parent)
     symptomEdit->setMinimumHeight(120);
     mainLayout->addWidget(symptomEdit);
 
-    // 按钮区域
     QHBoxLayout *buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(20);
 
@@ -50,7 +46,6 @@ SmartTriage::SmartTriage(QWidget *parent)
     buttonLayout->addWidget(registerBtn);
     mainLayout->addLayout(buttonLayout);
 
-    // 结果显示区域
     QLabel *resultLabel = new QLabel("📋 分诊结果：");
     resultLabel->setFont(QFont("", 14));
     mainLayout->addWidget(resultLabel);
@@ -60,16 +55,11 @@ SmartTriage::SmartTriage(QWidget *parent)
     resultBrowser->setMinimumHeight(200);
     mainLayout->addWidget(resultBrowser);
 
-    // 连接信号槽
     connect(analyzeBtn, &QPushButton::clicked, this, &SmartTriage::onAnalyzeClicked);
     connect(registerBtn, &QPushButton::clicked, this, &SmartTriage::onRegisterClicked);
 
-    // 初始化网络管理器
     networkManager = new QNetworkAccessManager(this);
     connect(networkManager, &QNetworkAccessManager::finished, this, &SmartTriage::onReplyFinished);
-
-    registerManager = new QNetworkAccessManager(this);
-    connect(registerManager, &QNetworkAccessManager::finished, this, &SmartTriage::onRegisterReplyFinished);
 }
 
 SmartTriage::~SmartTriage() {}
@@ -84,15 +74,25 @@ void SmartTriage::onAnalyzeClicked()
 
     resultBrowser->append("<font color='blue'>🤖 正在分析中...</font>");
 
-    // 调用本地 Flask 后端（安全，不暴露 API Key）
-    QUrl url("http://127.0.0.1:5000/api/triage");
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    Config::Mode mode = Config::instance().getMode();
 
-    QJsonObject jsonBody;
-    jsonBody["symptoms"] = symptoms;
+    if (mode == Config::MODE_DEMO) {
+        // 演示模式：离线分诊
+        QString result = OfflineTriage::instance().triage(symptoms);
+        currentTriageResult = result;
+        resultBrowser->append("<b>📋 分诊结果：</b>");
+        resultBrowser->append(result);
+    } else {
+        // 生产模式：调用后端 AI
+        QUrl url(Config::instance().getBackendUrl() + "/api/triage");
+        QNetworkRequest request(url);
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
-    networkManager->post(request, QJsonDocument(jsonBody).toJson());
+        QJsonObject jsonBody;
+        jsonBody["symptoms"] = symptoms;
+
+        networkManager->post(request, QJsonDocument(jsonBody).toJson());
+    }
 }
 
 void SmartTriage::onRegisterClicked()
@@ -104,28 +104,24 @@ void SmartTriage::onRegisterClicked()
 
     resultBrowser->append("<font color='blue'>🏥 正在为您挂号...</font>");
 
-    // 从分诊结果中提取科室名
+    // 简单提取科室
     QString department = "内科";
-    if (currentTriageResult.contains("内科")) department = "内科";
-    else if (currentTriageResult.contains("外科")) department = "外科";
-    else if (currentTriageResult.contains("神经内科")) department = "神经内科";
-    else if (currentTriageResult.contains("骨科")) department = "骨科";
-    else if (currentTriageResult.contains("儿科")) department = "儿科";
-    else if (currentTriageResult.contains("皮肤科")) department = "皮肤科";
+    if (currentTriageResult.contains("神经内科")) department = "神经内科";
+    else if (currentTriageResult.contains("眼科")) department = "眼科";
+    else if (currentTriageResult.contains("呼吸内科")) department = "呼吸内科";
+    else if (currentTriageResult.contains("消化内科")) department = "消化内科";
+    else if (currentTriageResult.contains("心内科")) department = "心内科";
 
-    QUrl url(HOSPITAL_API);
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    static int demoQueueNumber = 0;
+    demoQueueNumber++;
+    QString ticketId = QString("DEMO%1").arg(demoQueueNumber, 4, 10, QChar('0'));
 
-    QJsonObject jsonBody;
-    jsonBody["department"] = department;
-    jsonBody["patient_name"] = "测试患者";
-    jsonBody["symptoms"] = symptomEdit->toPlainText();
-
-    registerManager->post(request, QJsonDocument(jsonBody).toJson());
+    resultBrowser->append("<b><font color='green'>✅ 挂号成功！</font></b>");
+    resultBrowser->append(QString("🏥 科室: <b>%1</b>").arg(department));
+    resultBrowser->append(QString("🎫 挂号单号: <b>%1</b>").arg(ticketId));
+    resultBrowser->append(QString("👥 当前排队人数: <b>%1</b>").arg(demoQueueNumber));
 }
 
-// 处理 AI 分诊响应（来自 Flask 后端）
 void SmartTriage::onReplyFinished(QNetworkReply *reply)
 {
     if (reply->error() != QNetworkReply::NoError) {
@@ -145,41 +141,5 @@ void SmartTriage::onReplyFinished(QNetworkReply *reply)
     } else {
         resultBrowser->append("<font color='red'>❌ " + obj["message"].toString() + "</font>");
     }
-    reply->deleteLater();
-}
-
-// 处理挂号响应
-void SmartTriage::onRegisterReplyFinished(QNetworkReply *reply)
-{
-    if (reply->error() != QNetworkReply::NoError) {
-        resultBrowser->append(QString("<font color='red'>❌ 挂号失败: %1</font>").arg(reply->errorString()));
-        resultBrowser->append("<font color='red'>💡 请确保后端服务已启动: python app.py</font>");
-        reply->deleteLater();
-        return;
-    }
-
-    QByteArray data = reply->readAll();
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-
-    if (doc.isNull()) {
-        resultBrowser->append("<font color='red'>❌ 解析挂号响应失败</font>");
-        reply->deleteLater();
-        return;
-    }
-
-    QJsonObject obj = doc.object();
-    if (obj["success"].toBool()) {
-        QString ticketId = obj["ticket_id"].toString();
-        QString department = obj["department"].toString();
-        int queueNumber = obj["queue_number"].toInt();
-
-        resultBrowser->append("<b><font color='green'>✅ 挂号成功！</font></b>");
-        resultBrowser->append(QString("🏥 科室: <b>%1</b>").arg(department));
-        resultBrowser->append(QString("🎫 挂号单号: <b>%1</b>").arg(ticketId));
-        resultBrowser->append(QString("👥 当前排队人数: <b>%1</b>").arg(queueNumber));
-    } else {
-        resultBrowser->append("<font color='red'>❌ 挂号失败: " + obj["message"].toString() + "</font>");
-    }
-
     reply->deleteLater();
 }

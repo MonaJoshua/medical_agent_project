@@ -2,10 +2,10 @@
 #define SMARTTRIAGE_H
 
 #include <QWidget>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <QTextEdit>
 #include <QTextBrowser>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 
 class SmartTriage : public QWidget
 {
@@ -19,14 +19,12 @@ private slots:
     void onAnalyzeClicked();
     void onRegisterClicked();
     void onReplyFinished(QNetworkReply *reply);
-    void onRegisterReplyFinished(QNetworkReply *reply);
 
 private:
-    QNetworkAccessManager *networkManager;
-    QNetworkAccessManager *registerManager;
-    QString currentTriageResult;
     QTextEdit *symptomEdit;
     QTextBrowser *resultBrowser;
+    QString currentTriageResult;
+    QNetworkAccessManager *networkManager;
 };
 
 #endif // SMARTTRIAGE_H
