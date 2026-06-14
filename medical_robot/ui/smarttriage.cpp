@@ -1,6 +1,7 @@
 #include "smarttriage.h"
-#include "config.h"
-#include "offline_triage.h"
+#include "network/voicemanager.h"
+#include "core/offline_triage.h"
+#include "core/config.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -8,10 +9,13 @@
 #include <QNetworkRequest>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDir>
+#include <QFile>
 #include <QDebug>
 
 SmartTriage::SmartTriage(QWidget *parent)
     : QWidget(parent)
+    , voiceManager(nullptr)
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(20);
@@ -42,8 +46,13 @@ SmartTriage::SmartTriage(QWidget *parent)
     registerBtn->setFont(QFont("", 14));
     registerBtn->setMinimumHeight(40);
 
+    QPushButton *voiceBtn = new QPushButton("🎤 语音输入");
+    voiceBtn->setFont(QFont("", 14));
+    voiceBtn->setMinimumHeight(40);
+
     buttonLayout->addWidget(analyzeBtn);
     buttonLayout->addWidget(registerBtn);
+    buttonLayout->addWidget(voiceBtn);
     mainLayout->addLayout(buttonLayout);
 
     QLabel *resultLabel = new QLabel("📋 分诊结果：");
@@ -57,12 +66,33 @@ SmartTriage::SmartTriage(QWidget *parent)
 
     connect(analyzeBtn, &QPushButton::clicked, this, &SmartTriage::onAnalyzeClicked);
     connect(registerBtn, &QPushButton::clicked, this, &SmartTriage::onRegisterClicked);
+    connect(voiceBtn, &QPushButton::clicked, this, &SmartTriage::onVoiceInputClicked);
 
     networkManager = new QNetworkAccessManager(this);
     connect(networkManager, &QNetworkAccessManager::finished, this, &SmartTriage::onReplyFinished);
+
+    // 初始化语音管理器，从环境变量读取密钥
+    voiceManager = new VoiceManager(this);
+    
+    QString baiduApiKey = QString::fromLocal8Bit(qgetenv("BAIDU_API_KEY"));
+    QString baiduSecretKey = QString::fromLocal8Bit(qgetenv("BAIDU_SECRET_KEY"));
+    
+    if (baiduApiKey.isEmpty() || baiduSecretKey.isEmpty()) {
+        resultBrowser->append("<font color='orange'>⚠️ 语音功能未配置：请设置环境变量 BAIDU_API_KEY 和 BAIDU_SECRET_KEY</font>");
+    } else {
+        voiceManager->setApiKeys(baiduApiKey, baiduSecretKey);
+        resultBrowser->append("<font color='green'>✅ 语音模块已就绪</font>");
+    }
+    
+    connect(voiceManager, &VoiceManager::recognitionFinished, this, &SmartTriage::onVoiceRecognized);
+    connect(voiceManager, &VoiceManager::recognitionError, this, [this](const QString &error) {
+        resultBrowser->append("<font color='red'>❌ 语音识别失败: " + error + "</font>");
+    });
 }
 
-SmartTriage::~SmartTriage() {}
+SmartTriage::~SmartTriage()
+{
+}
 
 void SmartTriage::onAnalyzeClicked()
 {
@@ -77,13 +107,11 @@ void SmartTriage::onAnalyzeClicked()
     Config::Mode mode = Config::instance().getMode();
 
     if (mode == Config::MODE_DEMO) {
-        // 演示模式：离线分诊
         QString result = OfflineTriage::instance().triage(symptoms);
         currentTriageResult = result;
         resultBrowser->append("<b>📋 分诊结果：</b>");
         resultBrowser->append(result);
     } else {
-        // 生产模式：调用后端 AI
         QUrl url(Config::instance().getBackendUrl() + "/api/triage");
         QNetworkRequest request(url);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -104,7 +132,6 @@ void SmartTriage::onRegisterClicked()
 
     resultBrowser->append("<font color='blue'>🏥 正在为您挂号...</font>");
 
-    // 简单提取科室
     QString department = "内科";
     if (currentTriageResult.contains("神经内科")) department = "神经内科";
     else if (currentTriageResult.contains("眼科")) department = "眼科";
@@ -142,4 +169,26 @@ void SmartTriage::onReplyFinished(QNetworkReply *reply)
         resultBrowser->append("<font color='red'>❌ " + obj["message"].toString() + "</font>");
     }
     reply->deleteLater();
+}
+
+void SmartTriage::onVoiceInputClicked()
+{
+    resultBrowser->append("<font color='blue'>🎤 正在识别语音...</font>");
+    
+    QString audioPath = QDir::homePath() + "/test_audio.wav";
+    
+    if (!QFile::exists(audioPath)) {
+        resultBrowser->append("<font color='red'>❌ 测试音频文件不存在: " + audioPath + "</font>");
+        resultBrowser->append("<font color='red'>💡 请将音频文件放到: " + audioPath + "</font>");
+        return;
+    }
+    
+    voiceManager->recognizeFromFile(audioPath);
+}
+
+void SmartTriage::onVoiceRecognized(const QString &text)
+{
+    resultBrowser->append("<font color='green'>🎤 识别结果: " + text + "</font>");
+    symptomEdit->setText(text);
+    onAnalyzeClicked();
 }

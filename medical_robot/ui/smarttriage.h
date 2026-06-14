@@ -7,6 +7,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
+class VoiceManager;
+
 class SmartTriage : public QWidget
 {
     Q_OBJECT
@@ -19,12 +21,15 @@ private slots:
     void onAnalyzeClicked();
     void onRegisterClicked();
     void onReplyFinished(QNetworkReply *reply);
+    void onVoiceInputClicked();
+    void onVoiceRecognized(const QString &text);
 
 private:
     QTextEdit *symptomEdit;
     QTextBrowser *resultBrowser;
     QString currentTriageResult;
     QNetworkAccessManager *networkManager;
+    VoiceManager *voiceManager;
 };
 
 #endif // SMARTTRIAGE_H
