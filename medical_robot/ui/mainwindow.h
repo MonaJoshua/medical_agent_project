@@ -2,9 +2,12 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QTabWidget>
-#include "patientmonitor.h"
-#include "smarttriage.h"
+#include <QSystemTrayIcon>
+#include <QMenu>
+#include <QCloseEvent>
+#include <QPushButton>
+
+class SmartTriage;  // 前向声明
 
 class MainWindow : public QMainWindow
 {
@@ -14,10 +17,25 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
+private slots:
+    void onTrayIconActivated(QSystemTrayIcon::ActivationReason reason);
+    void showWindow();
+    void quitApp();
+    void toggleMode();
+    void toggleTriageMode();
+
 private:
-    QTabWidget *tabWidget;
-    PatientMonitor *patientMonitor;
-    SmartTriage *smartTriage;
+    void createTrayIcon();
+    QSystemTrayIcon *trayIcon;
+    QMenu *trayMenu;
+    QPushButton *modeBtn;
+    bool isOfflineMode;
+    QPushButton *triageModeBtn;
+    bool isMultiRoundMode;
+    SmartTriage *smartTriage;  // 保存智能导诊指针
 };
 
 #endif // MAINWINDOW_H

@@ -8,3 +8,60 @@
 __pycache__/
 *.pyc
 .env
+# 敏感配置
+.env
+backend/.env
+backend/instance/*.db
+
+# 打包产物
+*.AppImage
+squashfs-root/
+appimagetool-x86_64.AppImage
+*.tar.gz
+
+# 编译产物
+build/
+*.o
+*.so
+MedicalRobot
+medical_robot/build/
+medical_robot/AppDir/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 虚拟环境
+venv/
+backend/venv/
+
+# 临时文件
+*.log
+*.tmp
+*.swp
+*.bak
+
+# IDE 配置
+.vscode/
+.idea/
+*.user
+
+# 系统文件
+.bash_history
+.bash_logout
+.bashrc
+.profile
+.gitconfig
+.wget-hsts
+.lesshst
+.sudo_as_admin_successful
+.cache/
+.config/
+.dotnet/
+.gnupg/
+.local/
+.ssh/
+.streamlit/
+.vscode-server/
+test_audio.wav

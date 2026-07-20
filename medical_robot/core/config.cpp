@@ -1,6 +1,5 @@
 #include "config.h"
-#include <QDebug>
-#include <cstdlib>
+#include <cstdio>
 
 Config& Config::instance()
 {
@@ -10,13 +9,7 @@ Config& Config::instance()
 
 Config::Config()
 {
-    const char* env = std::getenv("MEDICAL_MODE");
-    if (env && QString(env) == "production") {
-        m_mode = MODE_PRODUCTION;
-        qDebug() << "🏥 运行模式: 生产模式 (production)";
-    } else {
-        m_mode = MODE_DEMO;
-        qDebug() << "🎮 运行模式: 演示模式 (demo)";
-    }
+    // 默认生产模式（联网）
+    m_mode = MODE_PRODUCTION;
     m_backendUrl = "http://127.0.0.1:5000";
 }
