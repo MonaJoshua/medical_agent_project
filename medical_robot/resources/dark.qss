@@ -1,0 +1,258 @@
+/* ============================================================
+   全局深色主题（整理版）
+   ============================================================ */
+
+/* ---------- 基础背景 ---------- */
+VoiceChatWidget, QWidget {
+    background-color: #1e1e1e;
+}
+
+/* ---------- 聊天列表 ---------- */
+QListWidget {
+    background-color: #1e1e1e;
+    border: none;
+}
+QListWidget::item {
+    border: none;
+    margin: 2px 0px;
+}
+
+/* ---------- 滚动条 ---------- */
+QScrollBar:vertical {
+    background: #2d2d2d;
+    width: 8px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #5a6a8a;
+    border-radius: 4px;
+    min-height: 30px;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* ---------- 输入框 ---------- */
+QLineEdit {
+    background-color: #2a2a3a;
+    border: 2px solid #4a5a7a;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 16px;
+    color: #d0d8e8;
+}
+QLineEdit:focus {
+    border-color: #6a8aff;
+}
+
+/* ---------- 通用标签 ---------- */
+QLabel {
+    color: #d0d8e8;
+}
+QLabel#titleLabel {
+    color: #b8c8ff;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* ---------- 语音助手专用按钮（带 objectName） ---------- */
+QPushButton#sendBtn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 8px 20px;
+    min-height: 36px;
+}
+QPushButton#sendBtn:hover {
+    background-color: #2a83f8;
+}
+
+QPushButton#helpBtn {
+    background-color: #2a2a3a;
+    color: #b8c8ff;
+    border: 2px solid #4a5a7a;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 16px;
+    min-height: 36px;
+}
+QPushButton#helpBtn:hover {
+    background-color: #3a3a5a;
+    border-color: #6a8aff;
+}
+
+QPushButton#resetBtn {
+    background-color: #2a2a3a;
+    color: #ffa0a0;
+    border: 2px solid #8a4a4a;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 16px;
+    min-height: 36px;
+}
+QPushButton#resetBtn:hover {
+    background-color: #3a2a2a;
+    border-color: #c06a6a;
+}
+
+QPushButton#voiceBtn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 35px;
+    font-size: 28px;
+    min-width: 70px;
+    max-width: 70px;
+    min-height: 70px;
+    max-height: 70px;
+}
+QPushButton#voiceBtn:pressed {
+    background-color: #e53935;
+}
+
+/* ---------- Tab 样式 ---------- */
+QTabWidget::pane {
+    border: 1px solid #4a5a7a;
+    background-color: #1e1e1e;
+}
+QTabBar::tab {
+    background-color: #2a2a3a;
+    color: #aab8d0;
+    padding: 8px 16px;
+    border: 1px solid #4a5a7a;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    font-weight: bold;
+}
+QTabBar::tab:selected {
+    background-color: #1e1e1e;
+    color: #d0d8e8;
+}
+QTabBar::tab:hover {
+    background-color: #3a3a5a;
+}
+
+/* ===== 一键挂号（SmartTriage）样式 ===== */
+/* 科室网格按钮 */
+SmartTriage QPushButton {
+    background-color: #2a2a3a;
+    border: 2px solid #4a5a7a;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: bold;
+    font-size: 14px;
+    color: #d0d8e8;
+}
+SmartTriage QPushButton:hover {
+    background-color: #3a3a5a;
+    border-color: #6a8aff;
+}
+SmartTriage QPushButton:checked {
+    background-color: #1a73e8;
+    color: white;
+    border-color: #1a73e8;
+}
+
+/* 挂号主按钮（蓝色强调） */
+SmartTriage #registerBtn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-weight: bold;
+    font-size: 14px;
+    min-height: 30px;
+}
+SmartTriage #registerBtn:hover {
+    background-color: #2a83f8;
+}
+SmartTriage #registerBtn:pressed {
+    background-color: #0a53c8;
+}
+
+/* 刷新按钮（若存在） */
+SmartTriage #refreshDeptBtn {
+    background-color: #3a3a5a;
+    color: #b8c8ff;
+    border: 2px solid #4a5a7a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: bold;
+    font-size: 13px;
+}
+SmartTriage #refreshDeptBtn:hover {
+    background-color: #4a4a6a;
+    border-color: #6a8aff;
+}
+
+/* 卡片容器（可选） */
+SmartTriage #deptCard,
+SmartTriage #resultCard {
+    background-color: #2a2a3a;
+    border: 1px solid #4a5a7a;
+    border-radius: 12px;
+}
+SmartTriage #smartTitle {
+    color: #b8c8ff;
+    font-size: 24px;
+    font-weight: bold;
+}
+SmartTriage #deptTitle,
+SmartTriage #resultTitle {
+    color: #b8c8ff;
+    font-size: 16px;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+}
+SmartTriage #resultBrowser {
+    background-color: #1e1e32;
+    border: 2px solid #4a5a7a;
+    border-radius: 10px;
+    padding: 12px;
+    color: #d0d8e8;
+    font-size: 14px;
+}
+SmartTriage #resultBrowser:focus {
+    border-color: #6a8aff;
+}
+
+/* 更多工具卡片 */
+MoreToolsWidget QPushButton {
+    background-color: #2a2a3a;
+    border: 2px solid #4a5a7a;
+    color: #d0d8e8;
+}
+MoreToolsWidget QPushButton:hover {
+    background-color: #3a3a5a;
+    border-color: #6a8aff;
+}
+MoreToolsWidget QPushButton:disabled {
+    background-color: #2a2a3a;
+    border: 2px dashed #4a5a7a;
+    color: #6a7a8a;
+}
+MoreToolsWidget QTextBrowser {
+    background-color: #1e1e32;
+}
+MoreToolsWidget a > div {
+    background-color: #2a2a3a !important;
+    border-color: #4a5a7a !important;
+}
+MoreToolsWidget a > div div {
+    color: #d0d8e8 !important;
+}
+MoreToolsWidget a > div div span {
+    color: #aab8c8 !important;
+}
+MoreToolsWidget a > div div span[style*="color: #3a4a5a"] {
+    color: #b0b8c8 !important;
+}

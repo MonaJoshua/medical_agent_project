@@ -549,7 +549,6 @@ async function loadRegistrations() {
             <td>${escapeHtml(r.department)}</td>
             <td>${escapeHtml(r.doctor)}</td>
             <td>${escapeHtml(r.date)}</td>
-            <td><span title="${escapeHtml(r.symptoms)}">${escapeHtml((r.symptoms || '').substring(0, 20))}${(r.symptoms || '').length > 20 ? '...' : ''}</span></td>
             <td>
                 <select class="form-select form-select-sm status-select" data-id="${r.id}">
                     <option value="waiting" ${r.status === 'waiting' ? 'selected' : ''}>待就诊</option>

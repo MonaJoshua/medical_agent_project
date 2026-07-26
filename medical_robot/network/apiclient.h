@@ -19,7 +19,13 @@ public:
     
     void registerPatient(const QString& department, const QString& patientName,
                          const QString& symptoms, std::function<void(bool, const QJsonObject&)> callback, int retryCount = 1);
-    
+
+    void sendSymptomRecord(const QString& patientName, const QString& symptom,
+                        const QString& department, const QString& suggestion);
+                        
+    void summarizeSymptom(const QString& symptom, 
+                        std::function<void(bool, const QString&)> callback);
+
 private:
     ApiClient();
     ~ApiClient();

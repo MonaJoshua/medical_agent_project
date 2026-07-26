@@ -1,4 +1,5 @@
 #include "ui/mainwindow.h"
+#include "thememanager.h"
 #include <QApplication>
 #include <QMutex>
 #include <QFile>
@@ -33,6 +34,10 @@ int main(int argc, char *argv[])
 {
     qInstallMessageHandler(messageHandler);
     QApplication a(argc, argv);
+    
+    // 应用默认浅色主题
+    ThemeManager::instance().applyTheme(ThemeManager::Light);
+    
     MainWindow w;
     w.show();
     return a.exec();

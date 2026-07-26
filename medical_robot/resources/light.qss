@@ -1,0 +1,221 @@
+/* ============================================================
+   全局浅色主题（整理版）
+   ============================================================ */
+
+/* ---------- 基础背景 ---------- */
+VoiceChatWidget, QWidget {
+    background-color: #f5f7fa;
+}
+
+/* ---------- 聊天列表 ---------- */
+QListWidget {
+    background-color: #f5f7fa;
+    border: none;
+}
+QListWidget::item {
+    border: none;
+    margin: 2px 0px;
+}
+
+/* ---------- 滚动条 ---------- */
+QScrollBar:vertical {
+    background: #f5f7fa;
+    width: 8px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #c1c1c1;
+    border-radius: 4px;
+    min-height: 30px;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* ---------- 输入框 ---------- */
+QLineEdit {
+    background-color: #ffffff;
+    border: 2px solid #d5e4ed;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 16px;
+    color: #1a1a1a;
+}
+
+/* ---------- 通用标签 ---------- */
+QLabel {
+    color: #1a1a1a;
+}
+QLabel#titleLabel {
+    color: #2c5f8a;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* ---------- 语音助手专用按钮（带 objectName） ---------- */
+QPushButton#sendBtn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 8px 20px;
+    min-height: 36px;
+}
+QPushButton#sendBtn:hover {
+    background-color: #1557b0;
+}
+
+QPushButton#helpBtn {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    border: 2px solid #1a73e8;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 16px;
+    min-height: 36px;
+}
+QPushButton#helpBtn:hover {
+    background-color: #d2e3fc;
+}
+
+QPushButton#resetBtn {
+    background-color: #fce8e6;
+    color: #d93025;
+    border: 2px solid #d93025;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 16px;
+    min-height: 36px;
+}
+QPushButton#resetBtn:hover {
+    background-color: #fad2cf;
+}
+
+QPushButton#voiceBtn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 35px;
+    font-size: 28px;
+    min-width: 70px;
+    max-width: 70px;
+    min-height: 70px;
+    max-height: 70px;
+}
+QPushButton#voiceBtn:pressed {
+    background-color: #e53935;
+}
+
+/* ---------- Tab 样式 ---------- */
+QTabWidget::pane {
+    border: 1px solid #d5e4ed;
+    background-color: #f5f7fa;
+}
+QTabBar::tab {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    padding: 8px 16px;
+    border: 1px solid #d5e4ed;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    font-weight: bold;
+}
+QTabBar::tab:selected {
+    background-color: #f5f7fa;
+    color: #1a73e8;
+}
+QTabBar::tab:hover {
+    background-color: #d2e3fc;
+}
+
+/* ===== 一键挂号（SmartTriage）样式 ===== */
+/* 科室网格按钮（包含选中、悬停状态） */
+SmartTriage QPushButton {
+    background-color: #f0f4f8;
+    border: 2px solid #d5e4ed;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: bold;
+    font-size: 14px;
+    color: #1a1a1a;
+}
+SmartTriage QPushButton:hover {
+    background-color: #e0e8f0;
+    border-color: #1a73e8;
+}
+SmartTriage QPushButton:checked {
+    background-color: #1a73e8;
+    color: white;
+    border-color: #1a73e8;
+}
+
+/* 挂号主按钮（蓝色强调） */
+SmartTriage #registerBtn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-weight: bold;
+    font-size: 14px;
+    min-height: 30px;
+}
+SmartTriage #registerBtn:hover {
+    background-color: #1557b0;
+}
+SmartTriage #registerBtn:pressed {
+    background-color: #0d47a1;
+}
+
+/* 刷新按钮（若存在） */
+SmartTriage #refreshDeptBtn {
+    background-color: #e0e8f0;
+    color: #1a73e8;
+    border: 2px solid #d5e4ed;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: bold;
+    font-size: 13px;
+}
+SmartTriage #refreshDeptBtn:hover {
+    background-color: #d2e3fc;
+    border-color: #1a73e8;
+}
+
+/* 卡片容器 */
+SmartTriage #deptCard,
+SmartTriage #resultCard {
+    background-color: #ffffff;
+    border: 1px solid #d5e4ed;
+    border-radius: 12px;
+}
+SmartTriage #smartTitle {
+    color: #2c5f8a;
+    font-size: 24px;
+    font-weight: bold;
+}
+SmartTriage #deptTitle,
+SmartTriage #resultTitle {
+    color: #2c5f8a;
+    font-size: 16px;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+}
+SmartTriage #resultBrowser {
+    background-color: #ffffff;
+    border: 2px solid #d5e4ed;
+    border-radius: 10px;
+    padding: 12px;
+    color: #2c3e50;
+    font-size: 14px;
+}
+SmartTriage #resultBrowser:focus {
+    border-color: #7ab8d9;
+}

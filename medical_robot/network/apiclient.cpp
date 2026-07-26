@@ -126,3 +126,69 @@ void ApiClient::registerPatient(const QString& department, const QString& patien
         reply->deleteLater();
     });
 }
+
+void ApiClient::summarizeSymptom(const QString& symptom,
+                                 std::function<void(bool, const QString&)> callback)
+{
+    QUrl url(m_backendUrl + "/api/summarize");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject obj;
+    obj["symptom"] = symptom;
+    QNetworkReply* reply = m_manager->post(request, QJsonDocument(obj).toJson());
+
+    QTimer* timer = new QTimer;
+    timer->setSingleShot(true);
+    connect(timer, &QTimer::timeout, [reply, timer, callback]() {
+        if (reply && reply->isRunning()) {
+            reply->abort();
+            callback(false, "摘要请求超时");
+        }
+        timer->deleteLater();
+    });
+    timer->start(15000);  // 15秒超时
+
+    connect(reply, &QNetworkReply::finished, [reply, timer, callback]() {
+        timer->stop();
+        timer->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            callback(false, reply->errorString());
+        } else {
+            QByteArray data = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            QJsonObject obj = doc.object();
+            if (obj["success"].toBool()) {
+                callback(true, obj["summary"].toString());
+            } else {
+                callback(false, obj["message"].toString());
+            }
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::sendSymptomRecord(const QString& patientName, const QString& symptom,
+                                  const QString& department, const QString& suggestion)
+{
+    QUrl url(m_backendUrl + "/api/symptom_records");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    // 若需API Key，可在此设置，例如：
+    // request.setRawHeader("X-API-Key", "your_api_key_here");
+
+    QJsonObject obj;
+    obj["patient_name"] = patientName;
+    obj["symptom"] = symptom;
+    obj["department"] = department;
+    obj["suggestion"] = suggestion;
+
+    QNetworkReply* reply = m_manager->post(request, QJsonDocument(obj).toJson());
+    QObject::connect(reply, &QNetworkReply::finished, [reply]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            qDebug() << "症状记录发送失败:" << reply->errorString();
+        }
+        reply->deleteLater();
+    });
+}

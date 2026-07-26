@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+﻿cmake_minimum_required(VERSION 3.10)
 project(MedicalRobot VERSION 1.0.0 LANGUAGES CXX)
 
 # 查找 Qt5 必需模块
@@ -7,7 +7,7 @@ find_package(Qt5 REQUIRED COMPONENTS Core Widgets Network Multimedia)
 # 自动处理 moc/uic/rcc
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTORCC ON)          # 自动编译 .qrc 资源文件
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # 源文件列表（按目录组织）
@@ -16,11 +16,17 @@ set(SOURCES
     ui/mainwindow.cpp
     ui/smarttriage.cpp
     ui/patientmonitor.cpp
+    ui/voicechatwidget.cpp
+    ui/wavewidget.cpp
+    ui/moretoolswidget.cpp  
+    ui/registrationrecordswidget.cpp
     core/offline_triage.cpp
     core/config.cpp
     core/triageengine.cpp
     network/apiclient.cpp
     network/voicemanager.cpp
+    thememanager.cpp
+    resources.qrc
 )
 
 # 头文件列表（对应源文件）
@@ -28,12 +34,17 @@ set(HEADERS
     ui/mainwindow.h
     ui/smarttriage.h
     ui/patientmonitor.h
+    ui/voicechatwidget.h
+    ui/wavewidget.h
+    ui/moretoolswidget.h  
+    ui/registrationrecordswidget.h
     core/offline_triage.h
     core/config.h
     core/triageengine.h
     core/datamodel.h
     network/apiclient.h
     network/voicemanager.h
+    thememanager.h
 )
 
 # 可执行文件
@@ -53,7 +64,6 @@ target_include_directories(MedicalRobot PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/core
     ${CMAKE_CURRENT_SOURCE_DIR}/network
-    # 如果 voice 目录独立，可添加 ${CMAKE_CURRENT_SOURCE_DIR}/voice
 )
 
 # 编译选项（可选）

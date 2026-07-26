@@ -5,26 +5,11 @@
 #include <QTimer>
 #include <QLCDNumber>
 #include <QLabel>
-
-class WaveWidget : public QWidget
-{
-    Q_OBJECT
-public:
-    explicit WaveWidget(QWidget *parent = nullptr);
-    void addDataPoint(double value);
-
-protected:
-    void paintEvent(QPaintEvent *event) override;
-
-private:
-    QVector<double> dataPoints;
-    int maxPoints = 200;
-};
+#include "wavewidget.h"
 
 class PatientMonitor : public QWidget
 {
     Q_OBJECT
-
 public:
     explicit PatientMonitor(QWidget *parent = nullptr);
     ~PatientMonitor();

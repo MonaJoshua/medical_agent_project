@@ -96,6 +96,14 @@ class ApiClient(db.Model):
         import secrets
         self.api_key = secrets.token_urlsafe(32)  # 生成强随机 Key
 
+class SymptomRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_name = db.Column(db.String(100))
+    symptom = db.Column(db.String(500))
+    department = db.Column(db.String(100))
+    suggestion = db.Column(db.String(200))
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+
 # ========== AI 配置 ==========
 QWEN_API_KEY = os.environ.get("QWEN_API_KEY", "")
 if not QWEN_API_KEY:
@@ -162,7 +170,7 @@ def init_db():
             db.session.commit()
             print("✅ 创建管理员账户: admin / admin123")
         if Department.query.count() == 0:
-            default_depts = ["全科门诊","内科", "外科",  "儿科", "皮肤科"]
+            default_depts = ["全科门诊","内科", "外科",  "皮肤科", "儿科", "心血管内科"]
             for name in default_depts:
                 db.session.add(Department(name=name, is_active=True))
             db.session.commit()
@@ -276,13 +284,124 @@ def api_triage():
     symptoms = data.get('symptoms', '')
     if not symptoms:
         return jsonify({"success": False, "message": "请提供症状描述"})
-    result = ai_triage(symptoms)
-    return jsonify({"success": True, "result": result})
+    
+    # 优化提示词，强制返回格式
+    prompt = f"""根据以下症状，给出分诊建议。必须按以下格式返回：
+    科室：<科室名>
+    建议：<一句话建议，不超过30字>
 
+    症状：{symptoms}"""
+    # ... 调用AI ...
+    # 解析返回文本提取科室和建议
+    import re
+    dept_match = re.search(r'科室：(.+)', raw)
+    sugg_match = re.search(r'建议：(.+)', raw)
+    department = dept_match.group(1).strip() if dept_match else "全科门诊"
+    suggestion = sugg_match.group(1).strip() if sugg_match else raw[:30]
+    return jsonify({"success": True, "department": department, "suggestion": suggestion})
+
+@app.route('/api/chat', methods=['POST'])
+def chat_health():
+    """普通健康咨询，返回简洁建议"""
+    data = request.get_json()
+    question = data.get('question', '')
+    if not question:
+        return jsonify({"success": False, "message": "请输入问题"})
+    if not QWEN_API_KEY:
+        return jsonify({"success": False, "message": "AI服务未配置"})
+    # 修改提示词：鼓励自然交流，移除字数限制
+    prompt = f"你是一位专业的医疗助手，请用简洁、通俗易懂的方式回答用户的健康问题。可以适当询问细节，提供有用的信息和建议。不要使用列表或Markdown格式，用流畅的段落表达。用户问题：{question}"
+    headers = {"Authorization": f"Bearer {QWEN_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": "qwen-turbo",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 300   # 增大 token 限制，允许更丰富回答
+    }
+    try:
+        resp = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+        if resp.status_code == 200:
+            answer = resp.json()['choices'][0]['message']['content'].strip()
+            return jsonify({"success": True, "answer": answer})
+        else:
+            return jsonify({"success": False, "message": "AI服务异常"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 @app.route('/api/hospital/status', methods=['GET'])
 def hospital_status():
     total_reg = Registration.query.count()
     return jsonify({"success": True, "total_registrations": total_reg})
+
+@app.route('/api/symptom_records', methods=['POST'])
+def add_symptom_record():
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "无效数据"}), 400
+    # 可选验证API Key（下面注释掉，以便测试）
+    # if not verify_api_key(request):
+    #     return jsonify({"success": False, "message": "API Key 无效"}), 401
+
+    record = SymptomRecord(
+        patient_name=data.get('patient_name', '未知'),
+        symptom=data.get('symptom', ''),
+        department=data.get('department', ''),
+        suggestion=data.get('suggestion', '')
+    )
+    db.session.add(record)
+    db.session.commit()
+    return jsonify({"success": True, "message": "症状记录已保存"})
+
+@app.route('/api/summarize', methods=['POST'])
+def summarize_symptom():
+    """使用AI将症状描述总结为少于30字的摘要"""
+    data = request.get_json()
+    if not data or 'symptom' not in data:
+        return jsonify({"success": False, "message": "缺少症状描述"}), 400
+
+    symptoms = data['symptom']
+    if not QWEN_API_KEY:
+        # 若未配置API Key，返回原始描述（不超过30字）
+        summary = symptoms[:30] + ("..." if len(symptoms) > 30 else "")
+        return jsonify({"success": True, "summary": summary})
+
+    headers = {"Authorization": f"Bearer {QWEN_API_KEY}", "Content-Type": "application/json"}
+    prompt = f"请将以下症状描述总结为一句简洁的话，不超过30个字：{symptoms}"
+    data_json = {
+        "model": "qwen-turbo",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 50
+    }
+    try:
+        resp = requests.post(API_URL, headers=headers, json=data_json, timeout=15)
+        if resp.status_code == 200:
+            summary = resp.json()['choices'][0]['message']['content'].strip()
+            # 强制截断至30字
+            if len(summary) > 30:
+                summary = summary[:30] + "..."
+            return jsonify({"success": True, "summary": summary})
+        else:
+            return jsonify({"success": False, "message": "AI服务异常"}), 500
+    except Exception as e:
+        print(f"摘要生成异常: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/registrations', methods=['GET'])
+def get_registrations():
+    """获取所有挂号记录（供语音助手使用）"""
+    registrations = Registration.query.order_by(Registration.created_at.desc()).all()
+    return jsonify({
+        "success": True,
+        "data": [{
+            "id": r.id,
+            "ticket_id": r.ticket_id,
+            "patient_name": r.patient_name,
+            "department": r.department_name,
+            "doctor": r.doctor_name,
+            "date": str(r.appointment_date),
+            "symptoms": r.symptoms,
+            "status": r.status,
+            "created_at": r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else ''
+        } for r in registrations]
+    })
 
 # ========== 管理后台 API（需登录）==========
 @app.route('/admin/login', methods=['POST'])

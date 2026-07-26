@@ -1,7 +1,10 @@
-#include "mainwindow.h"
+﻿#include "mainwindow.h"
+#include "thememanager.h"
 #include "patientmonitor.h"
 #include "smarttriage.h"
+#include "voicechatwidget.h"
 #include "core/triageengine.h"
+#include "ui/moretoolswidget.h"
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -18,35 +21,65 @@ MainWindow::MainWindow(QWidget *parent)
     , trayMenu(nullptr)
     , isOfflineMode(false)
     , smartTriage(nullptr)
+    , voiceChat(nullptr)
+    , patientMonitor(nullptr)
+    , darkModeBtn(nullptr)
+    , m_isDarkMode(false)
 {
-    setWindowTitle("智能桌面医疗机器人");
+    setWindowTitle("智能医疗机器人");
     resize(1000, 750);
 
-    // ----- Tab 控件（监护仪 + 智能导诊）-----
+    // ----- Tab 控件 -----
     QTabWidget *tabWidget = new QTabWidget(this);
 
-    PatientMonitor *patientMonitor = new PatientMonitor(this);
-    smartTriage = new SmartTriage(this);   // 存储指针供后续使用
+    // Tab 1: 语音助手（主界面）
+    voiceChat = new VoiceChatWidget(this);
+    connect(voiceChat, &VoiceChatWidget::requestMonitorPage,
+            this, &MainWindow::switchToMonitor);
+    // 连接跳转到挂号记录功能的信号
+    connect(voiceChat, &VoiceChatWidget::requestSwitchToMoreTools,
+            this, [this]() {
+                QTabWidget *tabWidget = qobject_cast<QTabWidget*>(centralWidget());
+                if (tabWidget) {
+                    tabWidget->setCurrentIndex(2); // 切换到更多工具
+                    // 获取更多工具 Widget 并直接显示挂号记录
+                    MoreToolsWidget *moreTools = qobject_cast<MoreToolsWidget*>(tabWidget->widget(2));
+                    if (moreTools) {
+                        moreTools->showRecordsPage();
+                    }
+                }
+            });
+
+    // Tab 2: 一键挂号
+    smartTriage = new SmartTriage(this);
+
+    // Tab 3: 更多工具
+    MoreToolsWidget *moreTools = new MoreToolsWidget(this);
+
+    // Tab 4: 监护仪
+    patientMonitor = new PatientMonitor(this);
 
     QFont tabFont = tabWidget->font();
-    tabFont.setPointSize(14); // 改成想要的数值
+    tabFont.setPointSize(14);
     tabWidget->setFont(tabFont);
+    tabWidget->addTab(voiceChat, "语音助手");
+    tabWidget->addTab(smartTriage, "一键挂号");
+    tabWidget->addTab(moreTools, "更多工具");
     tabWidget->addTab(patientMonitor, "监护仪");
-    tabWidget->addTab(smartTriage, "智能导诊");
+    tabWidget->setCurrentIndex(0); // 默认语音助手
 
-    // ----- 右上角按钮组（离线模式 + 分诊模式）-----
+    // ----- 右上角按钮（深色模式切换） -----
     QWidget *cornerWidget = new QWidget(this);
     QHBoxLayout *cornerLayout = new QHBoxLayout(cornerWidget);
     cornerLayout->setContentsMargins(0, 0, 0, 0);
     cornerLayout->setSpacing(8);
 
-    // ----- 离线/联网模式按钮-----
-    modeBtn = new QPushButton("离线模式", this);
-    modeBtn->setCheckable(true);
-    modeBtn->setChecked(false);
-    modeBtn->setFont(QFont("", 10, QFont::Bold));
-    modeBtn->setFixedHeight(30);
-    modeBtn->setStyleSheet(R"(
+    darkModeBtn = new QPushButton("🌙 深色", this);
+    darkModeBtn->setCheckable(true);
+    darkModeBtn->setChecked(false);
+    darkModeBtn->setFont(QFont("", 10, QFont::Bold));
+    darkModeBtn->setFixedHeight(30);
+    darkModeBtn->setStyleSheet(R"(
         QPushButton {
             background-color: #e8f0fe;
             color: #1a73e8;
@@ -55,54 +88,22 @@ MainWindow::MainWindow(QWidget *parent)
             padding: 4px 14px;
             font-weight: bold;
         }
-        QPushButton:hover {
-            background-color: #d2e3fc;
-        }
+        QPushButton:hover { background-color: #d2e3fc; }
         QPushButton:checked {
-            background-color: #edfce6;
-            border-color: #108f23;
-            color: #108f23;
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+            border-color: #555;
         }
     )");
-    connect(modeBtn, &QPushButton::clicked, this, &MainWindow::toggleMode);
+    connect(darkModeBtn, &QPushButton::toggled, this, &MainWindow::toggleDarkMode);
 
-    // ----- 分诊模式切换按钮（默认多轮预诊）-----
-    triageModeBtn = new QPushButton("多轮预诊", this);
-    triageModeBtn->setCheckable(true);
-    triageModeBtn->setChecked(true);   // 默认选中多轮预诊
-    triageModeBtn->setFont(QFont("", 10, QFont::Bold));
-    triageModeBtn->setFixedHeight(32);
-    triageModeBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #e8f0fe;
-            color: #1a73e8;
-            border: 2px solid #1a73e8;
-            border-radius: 8px;
-            padding: 4px 14px;
-            font-weight: bold;
-        }
-        QPushButton:hover {
-            background-color: #d2e3fc;
-        }
-        QPushButton:checked {
-            background-color: #e6f4ea;
-            border-color: #34a853;
-            color: #1e7e34;
-        }
-    )");
-    connect(triageModeBtn, &QPushButton::clicked, this, &MainWindow::toggleTriageMode);
-
-    // 将两个按钮添加到水平布局
-    cornerLayout->addWidget(modeBtn);
-    cornerLayout->addWidget(triageModeBtn);
+    cornerLayout->addWidget(darkModeBtn);
     cornerWidget->setLayout(cornerLayout);
-
-    // 将 cornerWidget 设置为 Tab 栏的右上角控件
     tabWidget->setCornerWidget(cornerWidget, Qt::TopRightCorner);
 
     setCentralWidget(tabWidget);
 
-    // 初始化模式：默认生产模式（联网）
+    // 默认在线模式（深色模式初始为关闭）
     TriageEngine::instance().setProductionMode(true);
 
     // ----- 系统托盘 -----
@@ -115,10 +116,10 @@ void MainWindow::createTrayIcon()
 {
     trayIcon = new QSystemTrayIcon(this);
     trayIcon->setIcon(QIcon::fromTheme("applications-games", QIcon()));
-    trayIcon->setToolTip("智能桌面医疗机器人");
+    trayIcon->setToolTip("智能医疗机器人");
 
     trayMenu = new QMenu(this);
-    QAction *showAction = trayMenu->addAction("显示主窗口");
+    QAction *showAction = trayMenu->addAction("显示窗口");
     trayMenu->addSeparator();
     QAction *hideAction = trayMenu->addAction("隐藏到托盘");
     trayMenu->addSeparator();
@@ -131,8 +132,7 @@ void MainWindow::createTrayIcon()
     trayIcon->setContextMenu(trayMenu);
     connect(trayIcon, &QSystemTrayIcon::activated, this, &MainWindow::onTrayIconActivated);
     trayIcon->show();
-
-    trayIcon->showMessage("智能医疗助手", "程序已启动，可最小化到托盘",
+    trayIcon->showMessage("医疗助手", "程序已启动，可最小化到托盘运行",
                           QSystemTrayIcon::Information, 2000);
 }
 
@@ -140,7 +140,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
     if (trayIcon && trayIcon->isVisible()) {
         hide();
-        trayIcon->showMessage("智能医疗助手", "程序已最小化到系统托盘",
+        trayIcon->showMessage("医疗助手", "已最小化到系统托盘",
                               QSystemTrayIcon::Information, 1500);
         event->ignore();
     } else {
@@ -167,66 +167,31 @@ void MainWindow::quitApp()
     QMessageBox::StandardButton reply = QMessageBox::question(
         this,
         "确认退出",
-        "确定要退出智能医疗助手吗？",
+        "确定要退出医疗助手吗？",
         QMessageBox::Yes | QMessageBox::No
     );
 
     if (reply == QMessageBox::Yes) {
-        if (trayIcon) {
-            trayIcon->hide();
-        }
+        if (trayIcon) trayIcon->hide();
         QApplication::quit();
     }
 }
 
-// ========== 离线/联网模式切换 ==========
-void MainWindow::toggleMode()
+void MainWindow::toggleDarkMode(bool checked)
 {
-    bool isOffline = modeBtn->isChecked();
-    TriageEngine::instance().setProductionMode(!isOffline);
-
-    if (isOffline) {
-        modeBtn->setText("联网模式");
-        modeBtn->setStyleSheet(R"(
-            QPushButton {
-                background-color: #edfce6;
-                color: #108f23;
-                border: 2px solid #108f23;
-                border-radius: 8px;
-                padding: 4px 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #ddfacf;
-            }
-        )");
-        statusBar()->showMessage("已切换到离线模式（本地分诊）", 2000);
+    m_isDarkMode = checked;
+    if (checked) {
+        ThemeManager::instance().applyTheme(ThemeManager::Dark);
     } else {
-        modeBtn->setText("离线模式");
-        modeBtn->setStyleSheet(R"(
-            QPushButton {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-                border: 2px solid #1a73e8;
-                border-radius: 8px;
-                padding: 4px 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #d2e3fc;
-            }
-        )");
-        statusBar()->showMessage("已切换到联网模式（AI分诊）", 2000);
+        ThemeManager::instance().applyTheme(ThemeManager::Light);
     }
+    darkModeBtn->setText(checked ? "☀️ 浅色" : "🌙 深色");
 }
 
-// ========== 分诊模式切换（快速分诊 vs 多轮预诊）==========
-void MainWindow::toggleTriageMode()
+void MainWindow::switchToMonitor()
 {
-    bool isMultiRound = triageModeBtn->isChecked();
-    if (smartTriage) {
-        smartTriage->setMultiRoundMode(isMultiRound);
+    QTabWidget *tabWidget = qobject_cast<QTabWidget*>(centralWidget());
+    if (tabWidget) {
+        tabWidget->setCurrentIndex(3); // 监护仪 Tab 索引为 3
     }
-    triageModeBtn->setText(isMultiRound ? "多轮预诊" : "快速分诊");
-    statusBar()->showMessage(isMultiRound ? "已切换到多轮预诊模式" : "已切换到快速分诊模式", 2000);
 }

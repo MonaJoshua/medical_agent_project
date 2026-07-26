@@ -1,53 +1,85 @@
-# 忽略所有编译产物（递归）
-**/build/
-**/*.o
-**/*.user
-**/*.bak
-**/*~
-**/venv/
-__pycache__/
-*.pyc
-.env
-# 敏感配置
-.env
-backend/.env
-backend/instance/*.db
-
-# 打包产物
-*.AppImage
-squashfs-root/
-appimagetool-x86_64.AppImage
-*.tar.gz
-
-# 编译产物
+# ============================================================
+# 通用编译产物
+# ============================================================
 build/
 *.o
 *.so
-MedicalRobot
+*.a
+*.exe
+*.dll
+*.dylib
+
+# ============================================================
+# Qt / C++ 构建临时文件
+# ============================================================
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+MedicalRobot_autogen/
+*.moc
+*.moc.cpp
+*.moc.o
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.rcc
+
+# Qt 项目构建目录（您可能已有，但更精确）
 medical_robot/build/
 medical_robot/AppDir/
+squashfs-root/
+*.AppImage
+appimagetool-x86_64.AppImage
 
-# Python 缓存
+# 可执行文件（根目录下）
+MedicalRobot
+MedicalRobot_autogen/
+
+# ============================================================
+# Python / Flask 后端
+# ============================================================
 __pycache__/
 *.pyc
 *.pyo
-
-# 虚拟环境
+*.pyd
 venv/
 backend/venv/
+*.env
+*.env.local
+backend/instance/*.db
+backend/instance/*.db-journal
+*.db
 
-# 临时文件
+# ============================================================
+# 日志与临时文件
+# ============================================================
 *.log
+medical_robot.log
+debug.log
 *.tmp
 *.swp
+*.swo
 *.bak
+*.wav
+test_audio.wav
+empty_test.txt
 
-# IDE 配置
+# ============================================================
+# IDE / 编辑器配置
+# ============================================================
 .vscode/
 .idea/
 *.user
+*.creator
+*.files
+*.includes
+*.config
 
-# 系统文件
+# ============================================================
+# 系统 / 用户配置文件（不应上传）
+# ============================================================
 .bash_history
 .bash_logout
 .bashrc
@@ -64,4 +96,16 @@ backend/venv/
 .ssh/
 .streamlit/
 .vscode-server/
-test_audio.wav
+
+# ============================================================
+# 其他临时生成文件
+# ============================================================
+*.pyc
+*.pyo
+*.so
+*.dSYM/
+*.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
