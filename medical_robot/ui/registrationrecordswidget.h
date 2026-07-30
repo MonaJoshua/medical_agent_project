@@ -14,15 +14,15 @@ class RegistrationRecordsWidget : public QWidget
     Q_OBJECT
 public:
     explicit RegistrationRecordsWidget(QWidget *parent = nullptr);
+    void refreshRecords();   // 改为 public
 
 signals:
-    void backToGrid();   // 点击“返回”时通知父窗口切换到网格页面
+    void backToGrid();
 
 private slots:
     void applyFilter();
     void resetFilter();
     void onDateChanged(const QDate &date);
-    void refreshRecords();
 
 private:
     void loadRecords();

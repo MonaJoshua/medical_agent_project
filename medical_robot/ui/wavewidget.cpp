@@ -1,10 +1,11 @@
 #include "wavewidget.h"
+#include "thememanager.h" 
 #include <QPainter>
 
 WaveWidget::WaveWidget(QWidget *parent) : QWidget(parent)
 {
-    setMinimumHeight(150);
-    setStyleSheet("background-color: black;");
+    setMinimumHeight(120);
+    setStyleSheet("background-color: transparent;");
 }
 
 void WaveWidget::addDataPoint(double value)
@@ -20,15 +21,18 @@ void WaveWidget::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    if (dataPoints.size() < 2) return;
-    if (width() <= 0 || height() <= 0) return;
+    if (dataPoints.size() < 2 || width() <= 0 || height() <= 0)
+        return;
 
-    double width = this->width();
+    // 从主题管理器获取颜色
+    bool isDark = (ThemeManager::instance().currentTheme() == ThemeManager::Dark);
+    QColor penColor = isDark ? QColor(100, 200, 255) : QColor(0, 120, 215);
+
+    double stepX = (double)width() / (maxPoints - 1);
     double height = this->height();
-    double stepX = width / (maxPoints - 1);
-    double minY = 0.0, maxY = 120.0;
+    double minY = 40.0, maxY = 120.0;
 
-    QPen pen(Qt::green, 2);
+    QPen pen(penColor, 2);
     painter.setPen(pen);
 
     QPolygonF polyline;

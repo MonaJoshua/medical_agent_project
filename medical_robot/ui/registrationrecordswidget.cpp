@@ -346,7 +346,7 @@ void RegistrationRecordsWidget::applyFilter()
 
     if (filtered.isEmpty()) {
         recordTable->setRowCount(1);
-        recordTable->setItem(0, 0, new QTableWidgetItem("暂无匹配的记录。"));
+        recordTable->setItem(0, 0, new QTableWidgetItem("暂无匹配的记录（或无法获取记录）"));
         recordTable->setSpan(0, 0, 1, 5);
         for (int col = 1; col < 5; ++col) recordTable->setItem(0, col, nullptr);
         recordTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);

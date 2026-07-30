@@ -42,7 +42,6 @@ MainWindow::MainWindow(QWidget *parent)
                 QTabWidget *tabWidget = qobject_cast<QTabWidget*>(centralWidget());
                 if (tabWidget) {
                     tabWidget->setCurrentIndex(2); // 切换到更多工具
-                    // 获取更多工具 Widget 并直接显示挂号记录
                     MoreToolsWidget *moreTools = qobject_cast<MoreToolsWidget*>(tabWidget->widget(2));
                     if (moreTools) {
                         moreTools->showRecordsPage();
@@ -58,6 +57,16 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Tab 4: 监护仪
     patientMonitor = new PatientMonitor(this);
+    // 连接监护仪历史数据信号，跳转到监护数据页面
+    connect(patientMonitor, &PatientMonitor::requestMonitorDataPage, [this, moreTools]() {
+        QTabWidget *tabWidget = qobject_cast<QTabWidget*>(centralWidget());
+        if (tabWidget) {
+            tabWidget->setCurrentIndex(2); // 更多工具索引为2
+            if (moreTools) {
+                moreTools->showMonitorData();
+            }
+        }
+    });
 
     QFont tabFont = tabWidget->font();
     tabFont.setPointSize(14);

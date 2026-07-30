@@ -2,7 +2,7 @@
 project(MedicalRobot VERSION 1.0.0 LANGUAGES CXX)
 
 # 查找 Qt5 必需模块
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Network Multimedia)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Network Multimedia Sql Charts)
 
 # 自动处理 moc/uic/rcc
 set(CMAKE_AUTOMOC ON)
@@ -20,9 +20,12 @@ set(SOURCES
     ui/wavewidget.cpp
     ui/moretoolswidget.cpp  
     ui/registrationrecordswidget.cpp
+    ui/trendwidget.cpp
+    ui/monitordatawidget.cpp
     core/offline_triage.cpp
     core/config.cpp
     core/triageengine.cpp
+    core/datamanager.cpp
     network/apiclient.cpp
     network/voicemanager.cpp
     thememanager.cpp
@@ -38,10 +41,15 @@ set(HEADERS
     ui/wavewidget.h
     ui/moretoolswidget.h  
     ui/registrationrecordswidget.h
+    ui/trendwidget.h
+    ui/monitordatawidget.h
     core/offline_triage.h
     core/config.h
     core/triageengine.h
     core/datamodel.h
+    core/datamanager.h
+    core/datastorage.cpp
+    core/datastorage.h
     network/apiclient.h
     network/voicemanager.h
     thememanager.h
@@ -56,6 +64,8 @@ target_link_libraries(MedicalRobot PRIVATE
     Qt5::Widgets
     Qt5::Network
     Qt5::Multimedia
+    Qt5::Sql
+    Qt5::Charts
 )
 
 # 包含目录（方便 #include 直接引用）

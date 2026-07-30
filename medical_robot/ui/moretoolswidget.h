@@ -5,6 +5,7 @@
 #include <QStackedWidget>
 
 class RegistrationRecordsWidget;
+class MonitorDataWidget;
 
 class MoreToolsWidget : public QWidget
 {
@@ -12,7 +13,8 @@ class MoreToolsWidget : public QWidget
 public:
     explicit MoreToolsWidget(QWidget *parent = nullptr);
     void showRecordsPage();
-    
+    void showMonitorData();
+
 private slots:
     void showGridPage();
 
@@ -22,6 +24,7 @@ private:
     QStackedWidget *stackedWidget;
     QWidget *gridPage;
     RegistrationRecordsWidget *recordsPage;
+    MonitorDataWidget *m_monitorDataPage;
 };
 
 #endif // MORETOOLSWIDGET_H
