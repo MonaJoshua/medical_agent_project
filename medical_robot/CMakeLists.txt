@@ -22,9 +22,7 @@ set(SOURCES
     ui/registrationrecordswidget.cpp
     ui/trendwidget.cpp
     ui/monitordatawidget.cpp
-    core/offline_triage.cpp
     core/config.cpp
-    core/triageengine.cpp
     core/datamanager.cpp
     network/apiclient.cpp
     network/voicemanager.cpp
@@ -43,9 +41,7 @@ set(HEADERS
     ui/registrationrecordswidget.h
     ui/trendwidget.h
     ui/monitordatawidget.h
-    core/offline_triage.h
     core/config.h
-    core/triageengine.h
     core/datamodel.h
     core/datamanager.h
     core/datastorage.cpp

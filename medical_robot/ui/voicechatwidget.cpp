@@ -1,8 +1,6 @@
 ﻿#include "voicechatwidget.h"
 #include "thememanager.h"  
 #include "network/voicemanager.h"
-#include "core/offline_triage.h"
-#include "core/triageengine.h"
 #include "network/apiclient.h"
 #include "core/config.h"
 #include <QVBoxLayout>
@@ -24,45 +22,43 @@
 #include <QProcess>
 #include <QDebug>
 #include <QSizePolicy>
-#include <QAudioDeviceInfo>
-#include <QAudioInput>
 #include <QScrollArea>
 #include <QDate>  
 #include <QTextDocument>  
-
-// 辅助函数：从离线分诊结果中提取科室名
-QString VoiceChatWidget::extractDepartment(const QString& raw)
-{
-    if (raw.contains("神经内科")) return "神经内科";
-    if (raw.contains("呼吸内科")) return "呼吸内科";
-    if (raw.contains("心内科")) return "心内科";
-    if (raw.contains("消化内科")) return "消化内科";
-    if (raw.contains("骨科")) return "骨科";
-    if (raw.contains("皮肤科")) return "皮肤科";
-    if (raw.contains("儿科")) return "儿科";
-    if (raw.contains("眼科")) return "眼科";
-    if (raw.contains("内科")) return "内科";
-    return "全科门诊";
-}
+#include <QByteArray>
 
 // ============================================================
 // 构造函数
 // ============================================================
 VoiceChatWidget::VoiceChatWidget(QWidget *parent)
-    : QWidget(parent), voiceManager(nullptr)
-    , m_audioInput(nullptr), m_audioDevice(nullptr)
+    : QWidget(parent)
+    , voiceManager(nullptr)
     , m_isRecording(false)
     , m_networkManager(new QNetworkAccessManager(this))
     , m_state(ChatState::IDLE)
-    , m_isOnline(true)          // 默认在线
-    , m_isDarkMode(false)       // 默认浅色
+    , m_isDarkMode(false)
+    , m_voiceEnabled(false)          // 语音默认关闭
+    , m_recordingProcess(nullptr)
 {
     voiceManager = new VoiceManager(this);
+
+    // 从环境变量读取百度密钥
+    QString apiKey = qgetenv("BAIDU_API_KEY");
+    QString secretKey = qgetenv("BAIDU_SECRET_KEY");
+    if (!apiKey.isEmpty() && !secretKey.isEmpty()) {
+        voiceManager->setApiKeys(apiKey, secretKey);
+        qDebug() << "✅ 百度语音密钥已加载";
+    } else {
+        qWarning() << "⚠️ 未设置 BAIDU_API_KEY 或 BAIDU_SECRET_KEY";
+    }
+
     connect(voiceManager, &VoiceManager::recognitionFinished,
             this, &VoiceChatWidget::onVoiceRecognized);
     connect(voiceManager, &VoiceManager::recognitionError,
             this, &VoiceChatWidget::onVoiceError);
+
     setupUI();
+    updateVoiceUI();
 
     // 监听主题变化
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
@@ -92,15 +88,22 @@ VoiceChatWidget::VoiceChatWidget(QWidget *parent)
 VoiceChatWidget::~VoiceChatWidget()
 {
     if (m_isRecording) stopRecording();
+    if (m_recordingProcess) {
+        if (m_recordingProcess->state() == QProcess::Running)
+            m_recordingProcess->terminate();
+        m_recordingProcess->waitForFinished(1000);
+        delete m_recordingProcess;
+        m_recordingProcess = nullptr;
+    }
 }
 
 // ============================================================
-// 深浅色模式切换（保留空函数，由全局样式控制）
+// 深浅色模式切换
 // ============================================================
 void VoiceChatWidget::setDarkMode(bool dark)
 {
     m_isDarkMode = dark;
-    // 无需逐控件设置，全局样式已生效
+    // 全局样式已生效
 }
 
 // ============================================================
@@ -115,21 +118,38 @@ void VoiceChatWidget::setupUI()
     // 顶部栏
     QHBoxLayout *topLayout = new QHBoxLayout();
     topLayout->setSpacing(10);
+
     QLabel *titleLabel = new QLabel("语音助手");
     titleLabel->setObjectName("titleLabel");
     titleLabel->setFont(QFont("", 20, QFont::Bold));
     topLayout->addWidget(titleLabel);
+
     topLayout->addStretch();
 
+    // 语音开关按钮
+    m_voiceToggleBtn = new QPushButton("🔇");
+    m_voiceToggleBtn->setObjectName("voiceToggleBtn");
+    m_voiceToggleBtn->setCheckable(true);
+    m_voiceToggleBtn->setChecked(false);
+    m_voiceToggleBtn->setFixedHeight(36);
+    m_voiceToggleBtn->setFont(QFont("", 12));
+    connect(m_voiceToggleBtn, &QPushButton::clicked, this, &VoiceChatWidget::onVoiceToggleClicked);
+    topLayout->addWidget(m_voiceToggleBtn);
+
+    // 帮助按钮
     helpBtn = new QPushButton("帮助");
     helpBtn->setObjectName("helpBtn");
+    helpBtn->setFixedHeight(36);
     connect(helpBtn, &QPushButton::clicked, this, &VoiceChatWidget::onHelpClicked);
     topLayout->addWidget(helpBtn);
 
+    // 重置按钮
     resetBtn = new QPushButton("重置");
     resetBtn->setObjectName("resetBtn");
+    resetBtn->setFixedHeight(36);
     connect(resetBtn, &QPushButton::clicked, this, &VoiceChatWidget::onResetClicked);
     topLayout->addWidget(resetBtn);
+
     mainLayout->addLayout(topLayout);
 
     // 聊天列表
@@ -168,21 +188,138 @@ void VoiceChatWidget::setupUI()
 }
 
 // ============================================================
-// 录音控制（保持不变）
+// 语音开关
+// ============================================================
+void VoiceChatWidget::onVoiceToggleClicked()
+{
+    m_voiceEnabled = m_voiceToggleBtn->isChecked();
+    updateVoiceUI();
+
+    if (m_voiceEnabled) {
+        m_voiceToggleBtn->setText("🔊");
+        addSystemBubble("🔊 语音已开启");
+    } else {
+        m_voiceToggleBtn->setText("🔇");
+        addSystemBubble("🔇 语音已关闭");
+        if (m_isRecording) {
+            stopRecording();
+            voiceBtn->setText("🎤");
+        }
+    }
+}
+
+void VoiceChatWidget::updateVoiceUI()
+{
+    voiceBtn->setEnabled(m_voiceEnabled);
+    voiceBtn->setStyleSheet(m_voiceEnabled ? "" : "QPushButton { opacity: 0.5; }");
+}
+
+// ============================================================
+// 录音控制（使用 arecord）
 // ============================================================
 void VoiceChatWidget::onVoiceBtnPressed()
 {
+    if (!m_voiceEnabled) return;
     voiceBtn->setText("🔴");
     startRecording();
 }
 
 void VoiceChatWidget::onVoiceBtnReleased()
 {
+    if (!m_voiceEnabled) {
+        voiceBtn->setText("🎤");
+        return;
+    }
     voiceBtn->setText("🎤");
-    stopRecording();
-    processAudioData();
+    stopRecording();   // 停止录音，自动触发识别
 }
 
+void VoiceChatWidget::startRecording()
+{
+    if (m_isRecording) return;
+
+    // 生成临时文件名
+    m_tempAudioFile = QDir::tempPath() + "/voice_record_" +
+                      QString::number(QDateTime::currentMSecsSinceEpoch()) + ".wav";
+    if (!QDir(QDir::tempPath()).exists()) {
+        m_tempAudioFile = "/tmp/voice_record_" +
+                          QString::number(QDateTime::currentMSecsSinceEpoch()) + ".wav";
+    }
+
+    QString cmd = QString("arecord -f S16_LE -r 16000 -c 1 %1").arg(m_tempAudioFile);
+    m_recordingProcess = new QProcess(this);
+    connect(m_recordingProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, &VoiceChatWidget::onRecordingFinished);
+
+    m_recordingProcess->start("bash", QStringList() << "-c" << cmd);
+    if (!m_recordingProcess->waitForStarted(2000)) {
+        qWarning() << "启动 arecord 失败，请检查是否安装 arecord";
+        delete m_recordingProcess;
+        m_recordingProcess = nullptr;
+        return;
+    }
+    m_isRecording = true;
+    voiceBtn->setText("🔴");
+}
+
+void VoiceChatWidget::stopRecording()
+{
+    if (!m_isRecording || !m_recordingProcess) return;
+
+    if (m_recordingProcess->state() == QProcess::Running) {
+        m_recordingProcess->terminate();
+        if (!m_recordingProcess->waitForFinished(2000)) {
+            m_recordingProcess->kill();
+            m_recordingProcess->waitForFinished(1000);
+        }
+    }
+    m_isRecording = false;
+    voiceBtn->setText("🎤");
+}
+
+void VoiceChatWidget::onRecordingFinished(int exitCode, QProcess::ExitStatus status)
+{
+    Q_UNUSED(exitCode);
+    Q_UNUSED(status);
+
+    // 检查录音文件是否生成
+    QFile file(m_tempAudioFile);
+    if (!file.exists() || file.size() == 0) {
+        addSystemBubble("录音文件无效或未录制内容，请重试");
+        if (m_recordingProcess) {
+            m_recordingProcess->deleteLater();
+            m_recordingProcess = nullptr;
+        }
+        return;
+    }
+
+    qDebug() << "录音文件生成，大小：" << file.size() << "字节";
+
+    // 尝试使用 ffmpeg 增益（可选）
+    QString gainFile = QDir::tempPath() + "/voice_gain_" +
+                       QString::number(QDateTime::currentMSecsSinceEpoch()) + ".wav";
+    QString cmd = QString("ffmpeg -i %1 -af \"volume=2\" %2 -y")
+                  .arg(m_tempAudioFile, gainFile);
+    int ret = system(cmd.toUtf8().constData());
+    if (ret == 0 && QFile::exists(gainFile) && QFileInfo(gainFile).size() > 0) {
+        voiceManager->recognizeFromFile(gainFile);
+        QTimer::singleShot(5000, [gainFile]() { QFile::remove(gainFile); });
+    } else {
+        voiceManager->recognizeFromFile(m_tempAudioFile);
+    }
+
+    // 清理原始文件
+    QTimer::singleShot(5000, [path = m_tempAudioFile]() { QFile::remove(path); });
+
+    if (m_recordingProcess) {
+        m_recordingProcess->deleteLater();
+        m_recordingProcess = nullptr;
+    }
+}
+
+// ============================================================
+// 语音识别回调
+// ============================================================
 void VoiceChatWidget::onVoiceRecognized(const QString &text)
 {
     if (!text.trimmed().isEmpty()) {
@@ -196,6 +333,9 @@ void VoiceChatWidget::onVoiceError(const QString &error)
     addSystemBubble("语音识别失败：" + error);
 }
 
+// ============================================================
+// 发送文本
+// ============================================================
 void VoiceChatWidget::onSendTextClicked()
 {
     QString text = textInput->text().trimmed();
@@ -267,35 +407,26 @@ void VoiceChatWidget::addChatMessage(const ChatMessage &msg)
     chatList->addItem(item);
     chatList->setItemWidget(item, container);
 
-    // ---- 使用 heightForWidth 精确计算高度 ----
-    // 强制更新布局，确保 label 已经获得宽度
+    // 高度计算
     container->adjustSize();
     container->updateGeometry();
 
-    // 获取 label 的实际宽度（如果尚未布局则使用最大宽度）
     int labelWidth = label->width();
     if (labelWidth <= 0) {
         labelWidth = label->maximumWidth();
     }
 
-    // 计算高度（heightForWidth 是 QWidget 的虚拟方法，QLabel 实现了它）
     int exactHeight = label->heightForWidth(labelWidth);
-    // 如果返回 -1（表示不支持），则回退到 sizeHint
     if (exactHeight < 0) {
         exactHeight = label->sizeHint().height();
     }
 
-    // 加上容器上下边距
     int totalHeight = exactHeight + 6;
-
-    // 设置容器和 item 的固定大小
     container->setFixedHeight(totalHeight);
     item->setSizeHint(QSize(labelWidth, totalHeight));
 
-    // 强制更新布局
     container->updateGeometry();
     chatList->doItemsLayout();
-
     chatList->scrollToBottom();
 }
 
@@ -346,61 +477,7 @@ void VoiceChatWidget::onLinkActivated(const QString &link)
 }
 
 // ============================================================
-// 录音处理（保持不变）
-// ============================================================
-void VoiceChatWidget::startRecording()
-{
-    if (m_isRecording) return;
-    QAudioFormat format;
-    format.setSampleRate(16000);
-    format.setChannelCount(1);
-    format.setSampleSize(16);
-    format.setCodec("audio/pcm");
-    format.setByteOrder(QAudioFormat::LittleEndian);
-    format.setSampleType(QAudioFormat::SignedInt);
-
-    QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
-    if (!info.isFormatSupported(format)) {
-        format = info.nearestFormat(format);
-    }
-
-    m_audioInput = new QAudioInput(info, format, this);
-    m_audioBuffer.clear();
-    m_audioDevice = m_audioInput->start();
-    if (m_audioDevice) {
-        connect(m_audioDevice, &QIODevice::readyRead, [this]() {
-            m_audioBuffer.append(m_audioDevice->readAll());
-        });
-        m_isRecording = true;
-    }
-}
-
-void VoiceChatWidget::stopRecording()
-{
-    if (m_audioInput && m_isRecording) {
-        m_audioInput->stop();
-        delete m_audioInput;
-        m_audioInput = nullptr;
-        m_audioDevice = nullptr;
-        m_isRecording = false;
-    }
-}
-
-void VoiceChatWidget::processAudioData()
-{
-    if (m_audioBuffer.isEmpty()) return;
-
-    QString tempFile = QDir::tempPath() + "/voice_input_" + QString::number(QDateTime::currentMSecsSinceEpoch()) + ".wav";
-    QFile file(tempFile);
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(m_audioBuffer);
-        file.close();
-        voiceManager->recognizeFromFile(tempFile);
-    }
-}
-
-// ============================================================
-// processUserInput — 处理用户输入（语音或文字）
+// 用户输入处理
 // ============================================================
 void VoiceChatWidget::processUserInput(const QString &input)
 {
@@ -492,36 +569,19 @@ void VoiceChatWidget::processUserInput(const QString &input)
         return;
     }
 
-    // ---------- 正常意图识别 ----------
+    // ---------- 意图识别 ----------
     QString intent = detectIntent(input);
     if (intent == "register") {
         m_state = ChatState::CONFIRM_REGISTER;
         addSystemBubble("确认要挂号吗？请说“确认挂号”或“取消”");
         return;
     }
-    if (intent == "triage") {
-        if (m_isOnline) {
-            addSystemBubble("在线模式下，请直接描述您的健康问题，我会为您解答。");
-            executeChat(input);
-        } else {
-            executeTriage(input);
-        }
-        return;
-    }
     if (intent == "slots") {
-        if (m_isOnline) {
-            executeQuerySlots(QString());
-        } else {
-            addSystemBubble("离线模式下无法查询号源，请切换至在线模式。");
-        }
+        executeQuerySlots(QString());
         return;
     }
     if (intent == "records") {
-        if (m_isOnline) {
-            executeQueryRecords();
-        } else {
-            addSystemBubble("离线模式下无法查看记录，请切换至在线模式。");
-        }
+        executeQueryRecords();
         return;
     }
     if (intent == "help") {
@@ -533,16 +593,12 @@ void VoiceChatWidget::processUserInput(const QString &input)
         return;
     }
 
-    // ---------- 默认健康咨询 ----------
-    if (m_isOnline) {
-        executeChat(input);
-    } else {
-        addSystemBubble("离线模式下，健康咨询功能不可用，请使用分诊或挂号功能。");
-    }
+    // ---------- 默认：健康咨询 ----------
+    executeChat(input);
 }
 
 // ============================================================
-// detectIntent — 识别用户意图
+// 意图检测
 // ============================================================
 QString VoiceChatWidget::detectIntent(const QString &input)
 {
@@ -569,41 +625,16 @@ QString VoiceChatWidget::detectIntent(const QString &input)
     if (lower.contains("帮助") || lower.contains("help")) return "help";
     if (lower.contains("重置") || lower.contains("重启") || lower.contains("清空")) return "reset";
 
-    QStringList symptomKeywords = {"头痛", "发烧", "咳嗽", "疼", "晕", "症状", "恶心", "痛"};
-    for (const QString &kw : symptomKeywords) {
-        if (lower.contains(kw)) return "triage";
-    }
-
-    return "chat";
+    return "chat";  // 默认咨询
 }
 
 // ============================================================
-// executeTriage — 执行分诊（仅离线模式）
-// ============================================================
-void VoiceChatWidget::executeTriage(const QString &input)
-{
-    m_state = ChatState::TRIAGING;
-    addSystemBubble("正在分析你的症状...");
-    speakText("正在分析你的症状。");
-
-    QString rawResult = OfflineTriage::instance().triage(input);
-    QString department = extractDepartment(rawResult);
-    QString response = QString(
-        "<div style='font-size:16px; line-height:1.8;'>"
-        "根据你的症状，我们建议你前往 <b style='color:#1a73e8; font-size:18px;'>%1</b> 就诊。</div>"
-    ).arg(department);
-    addSystemBubble(response);
-    speakText("根据症状，建议就诊 " + department);
-    m_state = ChatState::IDLE;
-}
-
-// ============================================================
-// executeRegister — 挂号
+// 挂号相关函数
 // ============================================================
 void VoiceChatWidget::executeRegister(const QString &input)
 {
     QString dept;
-    QStringList knownDepts = {"全科门诊", "外科", "内科", "皮肤科", "儿科","心血管内科"};
+    QStringList knownDepts = {"全科门诊", "外科", "内科", "皮肤科", "儿科", "心血管内科"};
     for (const auto &d : knownDepts) {
         if (input.contains(d, Qt::CaseInsensitive)) {
             dept = d;
@@ -680,13 +711,9 @@ void VoiceChatWidget::executeRegister(const QString &input)
             process->deleteLater();
         });
     } else {
-        if (!m_lastTriageResult.isEmpty()) {
-            executeRegister("挂号 " + m_lastTriageResult);
-        } else {
-            addSystemBubble("你想挂哪个科室的号？例如：全科门诊、心血管内科...");
-            speakText("你想挂哪个科室的号？");
-            m_state = ChatState::COLLECTING_DEPT;
-        }
+        addSystemBubble("你想挂哪个科室的号？例如：全科门诊、心血管内科...");
+        speakText("你想挂哪个科室的号？");
+        m_state = ChatState::COLLECTING_DEPT;
     }
 }
 
@@ -760,14 +787,11 @@ void VoiceChatWidget::doRegister(const QString &department)
 }
 
 // ============================================================
-// executeQuerySlots — 查询可用号源
+// 查询号源
 // ============================================================
 void VoiceChatWidget::executeQuerySlots(const QString &department)
 {
     QString dept = department;
-    if (dept.isEmpty() && !m_lastTriageResult.isEmpty()) {
-        dept = m_lastTriageResult;
-    }
 
     if (!dept.isEmpty()) {
         m_lastQueryDept = dept;
@@ -848,7 +872,7 @@ void VoiceChatWidget::executeQuerySlots(const QString &department)
 }
 
 // ============================================================
-// executeQueryRecords — 查询挂号记录
+// 查询记录
 // ============================================================
 void VoiceChatWidget::executeQueryRecords()
 {
@@ -862,7 +886,6 @@ void VoiceChatWidget::executeQueryRecords()
 
     connect(reply, &QNetworkReply::finished, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
-            // 降级使用 curl
             QProcess *process = new QProcess(this);
             process->start("curl", QStringList() << "-s" << "http://127.0.0.1:5000/api/registrations");
             connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -912,7 +935,6 @@ void VoiceChatWidget::displayRecords(const QJsonArray &records)
         return;
     }
 
-    // 构建卡片列表
     QString html = "<div style='margin: 4px 0;'>";
     for (const auto &val : records) {
         QJsonObject obj = val.toObject();
@@ -924,9 +946,7 @@ void VoiceChatWidget::displayRecords(const QJsonArray &records)
         QString status = obj["status"].toString();
         QString created = obj["created_at"].toString();
 
-        // 状态中文映射
-        QString statusText;
-        QString statusColor;
+        QString statusText, statusColor;
         if (status == "waiting") {
             statusText = "待就诊";
             statusColor = "#d93025";
@@ -966,7 +986,6 @@ void VoiceChatWidget::displayLatestRecord(const QJsonArray &records)
         return;
     }
 
-    // 取最新一条（数组已按时间降序排列，直接取第一个）
     QJsonObject obj = records.first().toObject();
     QString ticket = obj["ticket_id"].toString();
     QString dept = obj["department"].toString();
@@ -1010,11 +1029,10 @@ void VoiceChatWidget::displayLatestRecord(const QJsonArray &records)
 }
 
 // ============================================================
-// executeHelp — 显示帮助信息
+// 帮助
 // ============================================================
 void VoiceChatWidget::executeHelp()
 {
-    // 根据深色模式选择颜色
     QString bgColor = m_isDarkMode ? "#252535" : "#f8f9fa";
     QString borderColor = m_isDarkMode ? "#3a4a6a" : "#d5e4ed";
     QString textColor = m_isDarkMode ? "#f0f4f8" : "#2c3e50";  
@@ -1044,7 +1062,6 @@ void VoiceChatWidget::executeHelp()
 
     addSystemBubble(helpText);
 
-    // 语音朗读（纯文本）
     QString speechText =
         "帮助。你可以使用语音或文字交互。"
         "挂号，预约挂号，例如挂神经内科。"
@@ -1056,15 +1073,10 @@ void VoiceChatWidget::executeHelp()
 }
 
 // ============================================================
-// executeChat —— 通用咨询
+// 健康咨询
 // ============================================================
 void VoiceChatWidget::executeChat(const QString &input)
 {
-    if (!m_isOnline) {
-        addSystemBubble("离线模式下无法进行健康咨询，请切换至在线模式。");
-        return;
-    }
-
     addSystemBubble("正在思考...");
     QUrl url("http://127.0.0.1:5000/api/chat");
     QNetworkRequest request(url);
@@ -1095,7 +1107,9 @@ void VoiceChatWidget::executeChat(const QString &input)
             QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
             QJsonObject obj = doc.object();
             if (obj["success"].toBool()) {
-                addSystemBubble(obj["answer"].toString());
+                QString answer = obj["answer"].toString();
+                addSystemBubble(answer);
+                speakText(answer);
             } else {
                 addSystemBubble("咨询失败：" + obj["message"].toString());
             }
@@ -1105,7 +1119,7 @@ void VoiceChatWidget::executeChat(const QString &input)
 }
 
 // ============================================================
-// loadDepartments — 获取科室列表
+// 科室列表
 // ============================================================
 void VoiceChatWidget::loadDepartments(std::function<void()> callback)
 {
@@ -1133,9 +1147,6 @@ void VoiceChatWidget::loadDepartments(std::function<void()> callback)
     });
 }
 
-// ============================================================
-// showDepartmentCard — 显示科室列表卡片
-// ============================================================
 void VoiceChatWidget::showDepartmentCard()
 {
     if (m_departments.isEmpty()) {
@@ -1151,34 +1162,23 @@ void VoiceChatWidget::showDepartmentCard()
 }
 
 // ============================================================
-// speakText — TTS 语音输出
+// TTS 语音输出
 // ============================================================
 void VoiceChatWidget::speakText(const QString &text)
 {
+    if (!m_voiceEnabled) return;   // 语音关闭时不朗读
+
     QString plainText = text;
     plainText.replace(QRegularExpression("<[^>]*>"), "");
     voiceManager->speak(plainText);
 }
 
 // ============================================================
-// setOnlineMode — 切换在线/离线模式
-// ============================================================
-void VoiceChatWidget::setOnlineMode(bool online)
-{
-    m_isOnline = online;
-    TriageEngine::instance().setProductionMode(online);
-    addSystemBubble(QString("已切换到%1模式").arg(online ? "在线" : "离线"));
-}
-
-// ============================================================
-// resetConversation — 重置对话
+// 重置对话
 // ============================================================
 void VoiceChatWidget::resetConversation()
 {
     m_state = ChatState::IDLE;
-    m_collectedSymptom.clear();
-    m_collectedDepartment.clear();
-    m_lastTriageResult.clear();
 
     if (chatList) {
         chatList->clear();

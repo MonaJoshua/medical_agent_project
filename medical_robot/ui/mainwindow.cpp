@@ -3,7 +3,6 @@
 #include "patientmonitor.h"
 #include "smarttriage.h"
 #include "voicechatwidget.h"
-#include "core/triageengine.h"
 #include "ui/moretoolswidget.h"
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -19,7 +18,6 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , trayIcon(nullptr)
     , trayMenu(nullptr)
-    , isOfflineMode(false)
     , smartTriage(nullptr)
     , voiceChat(nullptr)
     , patientMonitor(nullptr)
@@ -111,9 +109,6 @@ MainWindow::MainWindow(QWidget *parent)
     tabWidget->setCornerWidget(cornerWidget, Qt::TopRightCorner);
 
     setCentralWidget(tabWidget);
-
-    // 默认在线模式（深色模式初始为关闭）
-    TriageEngine::instance().setProductionMode(true);
 
     // ----- 系统托盘 -----
     createTrayIcon();

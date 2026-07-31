@@ -31,7 +31,6 @@ PatientMonitor::PatientMonitor(QWidget *parent)
     , m_spo2TimeLabel(nullptr)
     , m_tempTimeLabel(nullptr)
     , alarmLight(nullptr)
-    , emergencyBtn(nullptr)
     , alarmSettingsBtn(nullptr)
     , startBtn(nullptr)
     , m_collectTimer(nullptr)
@@ -82,7 +81,7 @@ PatientMonitor::~PatientMonitor()
         m_storeTimer->stop();
         delete m_storeTimer;
         m_storeTimer = nullptr;
-    } 
+    }
 }
 
 void PatientMonitor::setupUI()
@@ -120,16 +119,6 @@ void PatientMonitor::setupUI()
     alarmLight->setStyleSheet("background-color: #4caf50; border-radius: 25px;");
     bottomLayout->addWidget(alarmLight, 0, Qt::AlignLeft);
     bottomLayout->addStretch();
-
-    // 紧急呼叫
-    emergencyBtn = new QPushButton("🔔 紧急呼叫");
-    emergencyBtn->setFont(QFont("", 18, QFont::Bold));
-    emergencyBtn->setMinimumHeight(48);
-    emergencyBtn->setCursor(Qt::PointingHandCursor);
-    connect(emergencyBtn, &QPushButton::clicked, []() {
-        qDebug() << "🔔 紧急呼叫！";
-    });
-    bottomLayout->addWidget(emergencyBtn, 0, Qt::AlignRight);
 
     // 开始测量
     startBtn = new QPushButton("开始测量");
@@ -274,16 +263,6 @@ void PatientMonitor::updateTheme()
                 "QPushButton:hover { background-color: #1557b0; }";
         }
         startBtn->setStyleSheet(style);
-    }
-
-    // ---- 紧急呼叫 ----
-    if (emergencyBtn) {
-        QString style = isDark ?
-            "QPushButton { background-color: #8e0000; color: white; border: none; border-radius: 8px; padding: 8px 24px; font-size: 18px; font-weight: bold; min-height: 48px; }"
-            "QPushButton:hover { background-color: #b71c1c; }" :
-            "QPushButton { background-color: #d93025; color: white; border: none; border-radius: 8px; padding: 8px 24px; font-size: 18px; font-weight: bold; min-height: 48px; }"
-            "QPushButton:hover { background-color: #b71c1c; }";
-        emergencyBtn->setStyleSheet(style);
     }
 
     // ---- 波形 ----

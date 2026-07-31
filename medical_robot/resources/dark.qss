@@ -1,9 +1,12 @@
 /* ============================================================
-   全局深色主题（整理版）
+   全局深色主题（优化版）
    ============================================================ */
 
 /* ---------- 基础背景 ---------- */
-VoiceChatWidget, QWidget {
+VoiceChatWidget {
+    background-color: #1e1e1e;
+}
+QWidget {
     background-color: #1e1e1e;
 }
 
@@ -56,7 +59,11 @@ QLabel#titleLabel {
     font-weight: bold;
 }
 
-/* ---------- 语音助手专用按钮（带 objectName） ---------- */
+/* ============================================================
+   语音助手专用按钮（带 objectName）
+   ============================================================ */
+
+/* 发送按钮 */
 QPushButton#sendBtn {
     background-color: #1a73e8;
     color: white;
@@ -71,29 +78,31 @@ QPushButton#sendBtn:hover {
     background-color: #2a83f8;
 }
 
+/* 帮助按钮 */
 QPushButton#helpBtn {
-    background-color: #2a2a3a;
-    color: #b8c8ff;
+    background-color: transparent;
+    color: #6a8aff;
     border: 2px solid #4a5a7a;
     border-radius: 20px;
     font-size: 14px;
     font-weight: bold;
-    padding: 8px 16px;
+    padding: 6px 16px;
     min-height: 36px;
 }
 QPushButton#helpBtn:hover {
-    background-color: #3a3a5a;
+    background-color: #2a2a4a;
     border-color: #6a8aff;
 }
 
+/* 重置按钮 */
 QPushButton#resetBtn {
-    background-color: #2a2a3a;
-    color: #ffa0a0;
+    background-color: transparent;
+    color: #e57373;
     border: 2px solid #8a4a4a;
     border-radius: 20px;
     font-size: 14px;
     font-weight: bold;
-    padding: 8px 16px;
+    padding: 6px 16px;
     min-height: 36px;
 }
 QPushButton#resetBtn:hover {
@@ -101,6 +110,31 @@ QPushButton#resetBtn:hover {
     border-color: #c06a6a;
 }
 
+/* 语音开关按钮（新增） */
+QPushButton#voiceToggleBtn {
+    background-color: transparent;
+    color: #4caf50;
+    border: 2px solid #2d5a2d;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 6px 16px;
+    min-height: 36px;
+}
+QPushButton#voiceToggleBtn:hover {
+    background-color: #1a3a2a;
+    border-color: #4caf50;
+}
+QPushButton#voiceToggleBtn:checked {
+    background-color: #2d7a3d;
+    color: white;
+    border-color: #4caf50;
+}
+QPushButton#voiceToggleBtn:checked:hover {
+    background-color: #3a8a4a;
+}
+
+/* 语音输入按钮（麦克风） */
 QPushButton#voiceBtn {
     background-color: #1a73e8;
     color: white;
@@ -114,6 +148,10 @@ QPushButton#voiceBtn {
 }
 QPushButton#voiceBtn:pressed {
     background-color: #e53935;
+}
+QPushButton#voiceBtn:disabled {
+    background-color: #3a3a4a;
+    color: #6a7a8a;
 }
 
 /* ---------- Tab 样式 ---------- */
@@ -139,7 +177,10 @@ QTabBar::tab:hover {
     background-color: #3a3a5a;
 }
 
-/* ===== 一键挂号（SmartTriage）样式 ===== */
+/* ============================================================
+   一键挂号（SmartTriage）样式
+   ============================================================ */
+
 /* 科室网格按钮 */
 SmartTriage QPushButton {
     background-color: #2a2a3a;
@@ -160,7 +201,7 @@ SmartTriage QPushButton:checked {
     border-color: #1a73e8;
 }
 
-/* 挂号主按钮（蓝色强调） */
+/* 挂号主按钮 */
 SmartTriage #registerBtn {
     background-color: #1a73e8;
     color: white;
@@ -178,7 +219,7 @@ SmartTriage #registerBtn:pressed {
     background-color: #0a53c8;
 }
 
-/* 刷新按钮（若存在） */
+/* 刷新按钮 */
 SmartTriage #refreshDeptBtn {
     background-color: #3a3a5a;
     color: #b8c8ff;
@@ -193,7 +234,7 @@ SmartTriage #refreshDeptBtn:hover {
     border-color: #6a8aff;
 }
 
-/* 卡片容器（可选） */
+/* 卡片容器 */
 SmartTriage #deptCard,
 SmartTriage #resultCard {
     background-color: #2a2a3a;
@@ -225,10 +266,16 @@ SmartTriage #resultBrowser:focus {
     border-color: #6a8aff;
 }
 
-/* 更多工具卡片 */
+/* ============================================================
+   更多工具（MoreToolsWidget）样式
+   ============================================================ */
 MoreToolsWidget QPushButton {
     background-color: #2a2a3a;
     border: 2px solid #4a5a7a;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: bold;
+    font-size: 14px;
     color: #d0d8e8;
 }
 MoreToolsWidget QPushButton:hover {
@@ -242,17 +289,10 @@ MoreToolsWidget QPushButton:disabled {
 }
 MoreToolsWidget QTextBrowser {
     background-color: #1e1e32;
+    color: #d0d8e8;
+    border: 1px solid #4a5a7a;
+    border-radius: 8px;
 }
-MoreToolsWidget a > div {
-    background-color: #2a2a3a !important;
-    border-color: #4a5a7a !important;
-}
-MoreToolsWidget a > div div {
-    color: #d0d8e8 !important;
-}
-MoreToolsWidget a > div div span {
-    color: #aab8c8 !important;
-}
-MoreToolsWidget a > div div span[style*="color: #3a4a5a"] {
-    color: #b0b8c8 !important;
+MoreToolsWidget QLabel {
+    color: #d0d8e8;
 }

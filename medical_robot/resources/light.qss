@@ -1,9 +1,12 @@
 /* ============================================================
-   全局浅色主题（整理版）
+   全局浅色主题（优化版）
    ============================================================ */
 
 /* ---------- 基础背景 ---------- */
-VoiceChatWidget, QWidget {
+VoiceChatWidget {
+    background-color: #f5f7fa;
+}
+QWidget {
     background-color: #f5f7fa;
 }
 
@@ -42,6 +45,9 @@ QLineEdit {
     font-size: 16px;
     color: #1a1a1a;
 }
+QLineEdit:focus {
+    border-color: #1a73e8;
+}
 
 /* ---------- 通用标签 ---------- */
 QLabel {
@@ -53,7 +59,11 @@ QLabel#titleLabel {
     font-weight: bold;
 }
 
-/* ---------- 语音助手专用按钮（带 objectName） ---------- */
+/* ============================================================
+   语音助手专用按钮（带 objectName）
+   ============================================================ */
+
+/* 发送按钮 */
 QPushButton#sendBtn {
     background-color: #1a73e8;
     color: white;
@@ -68,34 +78,59 @@ QPushButton#sendBtn:hover {
     background-color: #1557b0;
 }
 
+/* 帮助按钮 */
 QPushButton#helpBtn {
-    background-color: #e8f0fe;
+    background-color: transparent;
     color: #1a73e8;
     border: 2px solid #1a73e8;
     border-radius: 20px;
     font-size: 14px;
     font-weight: bold;
-    padding: 8px 16px;
+    padding: 6px 16px;
     min-height: 36px;
 }
 QPushButton#helpBtn:hover {
     background-color: #d2e3fc;
 }
 
+/* 重置按钮 */
 QPushButton#resetBtn {
-    background-color: #fce8e6;
+    background-color: transparent;
     color: #d93025;
     border: 2px solid #d93025;
     border-radius: 20px;
     font-size: 14px;
     font-weight: bold;
-    padding: 8px 16px;
+    padding: 6px 16px;
     min-height: 36px;
 }
 QPushButton#resetBtn:hover {
-    background-color: #fad2cf;
+    background-color: #fce8e6;
 }
 
+/* 语音开关按钮（新增） */
+QPushButton#voiceToggleBtn {
+    background-color: transparent;
+    color: #34a853;
+    border: 2px solid #34a853;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 6px 16px;
+    min-height: 36px;
+}
+QPushButton#voiceToggleBtn:hover {
+    background-color: #e6f4ea;
+}
+QPushButton#voiceToggleBtn:checked {
+    background-color: #34a853;
+    color: white;
+}
+QPushButton#voiceToggleBtn:checked:hover {
+    background-color: #2d8f47;
+}
+
+/* 语音输入按钮（麦克风） */
 QPushButton#voiceBtn {
     background-color: #1a73e8;
     color: white;
@@ -109,6 +144,10 @@ QPushButton#voiceBtn {
 }
 QPushButton#voiceBtn:pressed {
     background-color: #e53935;
+}
+QPushButton#voiceBtn:disabled {
+    background-color: #b0b0b0;
+    color: #e0e0e0;
 }
 
 /* ---------- Tab 样式 ---------- */
@@ -134,8 +173,9 @@ QTabBar::tab:hover {
     background-color: #d2e3fc;
 }
 
-/* ===== 一键挂号（SmartTriage）样式 ===== */
-/* 科室网格按钮（包含选中、悬停状态） */
+/* ============================================================
+   一键挂号（SmartTriage）样式
+   ============================================================ */
 SmartTriage QPushButton {
     background-color: #f0f4f8;
     border: 2px solid #d5e4ed;
@@ -155,7 +195,7 @@ SmartTriage QPushButton:checked {
     border-color: #1a73e8;
 }
 
-/* 挂号主按钮（蓝色强调） */
+/* 挂号主按钮 */
 SmartTriage #registerBtn {
     background-color: #1a73e8;
     color: white;
@@ -173,7 +213,7 @@ SmartTriage #registerBtn:pressed {
     background-color: #0d47a1;
 }
 
-/* 刷新按钮（若存在） */
+/* 刷新按钮 */
 SmartTriage #refreshDeptBtn {
     background-color: #e0e8f0;
     color: #1a73e8;

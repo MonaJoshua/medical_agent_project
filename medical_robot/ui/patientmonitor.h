@@ -50,7 +50,6 @@ private:
     QLabel *m_spo2TimeLabel;
     QLabel *m_tempTimeLabel;
     QLabel *alarmLight;
-    QPushButton *emergencyBtn;
     QPushButton *alarmSettingsBtn;
     QPushButton *startBtn;
     QPointer<TrendWidget> m_trendWindow; 
