@@ -17,7 +17,7 @@ public:
 private:
     void setupUI();
     void loadData();
-    void applyTheme();   // 新增声明
+    void applyTheme();
 
     QChartView *chartView;
     QString m_paramName;

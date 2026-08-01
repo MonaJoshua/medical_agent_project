@@ -1,5 +1,8 @@
-﻿#include "voicechatwidget.h"
-#include "thememanager.h"  
+﻿// voicechatwidget.cpp
+// 语音助手组件：语音识别 + 意图理解 + 多轮对话
+
+#include "voicechatwidget.h"
+#include "thememanager.h"
 #include "network/voicemanager.h"
 #include "network/apiclient.h"
 #include "core/config.h"
@@ -22,14 +25,12 @@
 #include <QProcess>
 #include <QDebug>
 #include <QSizePolicy>
-#include <QScrollArea>
-#include <QDate>  
-#include <QTextDocument>  
-#include <QByteArray>
+#include <QDate>
 
 // ============================================================
-// 构造函数
+// 构造 / 析构
 // ============================================================
+
 VoiceChatWidget::VoiceChatWidget(QWidget *parent)
     : QWidget(parent)
     , voiceManager(nullptr)
@@ -37,7 +38,7 @@ VoiceChatWidget::VoiceChatWidget(QWidget *parent)
     , m_networkManager(new QNetworkAccessManager(this))
     , m_state(ChatState::IDLE)
     , m_isDarkMode(false)
-    , m_voiceEnabled(false)          // 语音默认关闭
+    , m_voiceEnabled(false)
     , m_recordingProcess(nullptr)
 {
     voiceManager = new VoiceManager(this);
@@ -60,11 +61,10 @@ VoiceChatWidget::VoiceChatWidget(QWidget *parent)
     setupUI();
     updateVoiceUI();
 
-    // 监听主题变化
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
-        this, [this](ThemeManager::Theme theme) {
-            m_isDarkMode = (theme == ThemeManager::Dark);
-        });
+            this, [this](ThemeManager::Theme theme) {
+                m_isDarkMode = (theme == ThemeManager::Dark);
+            });
 
     // 欢迎消息
     QString welcome = QStringLiteral(
@@ -82,9 +82,6 @@ VoiceChatWidget::VoiceChatWidget(QWidget *parent)
     loadDepartments();
 }
 
-// ============================================================
-// 析构函数
-// ============================================================
 VoiceChatWidget::~VoiceChatWidget()
 {
     if (m_isRecording) stopRecording();
@@ -97,18 +94,15 @@ VoiceChatWidget::~VoiceChatWidget()
     }
 }
 
-// ============================================================
-// 深浅色模式切换
-// ============================================================
 void VoiceChatWidget::setDarkMode(bool dark)
 {
     m_isDarkMode = dark;
-    // 全局样式已生效
 }
 
 // ============================================================
-// setupUI
+// UI 初始化
 // ============================================================
+
 void VoiceChatWidget::setupUI()
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
@@ -123,10 +117,8 @@ void VoiceChatWidget::setupUI()
     titleLabel->setObjectName("titleLabel");
     titleLabel->setFont(QFont("", 20, QFont::Bold));
     topLayout->addWidget(titleLabel);
-
     topLayout->addStretch();
 
-    // 语音开关按钮
     m_voiceToggleBtn = new QPushButton("🔇");
     m_voiceToggleBtn->setObjectName("voiceToggleBtn");
     m_voiceToggleBtn->setCheckable(true);
@@ -136,14 +128,12 @@ void VoiceChatWidget::setupUI()
     connect(m_voiceToggleBtn, &QPushButton::clicked, this, &VoiceChatWidget::onVoiceToggleClicked);
     topLayout->addWidget(m_voiceToggleBtn);
 
-    // 帮助按钮
     helpBtn = new QPushButton("帮助");
     helpBtn->setObjectName("helpBtn");
     helpBtn->setFixedHeight(36);
     connect(helpBtn, &QPushButton::clicked, this, &VoiceChatWidget::onHelpClicked);
     topLayout->addWidget(helpBtn);
 
-    // 重置按钮
     resetBtn = new QPushButton("重置");
     resetBtn->setObjectName("resetBtn");
     resetBtn->setFixedHeight(36);
@@ -188,8 +178,9 @@ void VoiceChatWidget::setupUI()
 }
 
 // ============================================================
-// 语音开关
+// 语音控制
 // ============================================================
+
 void VoiceChatWidget::onVoiceToggleClicked()
 {
     m_voiceEnabled = m_voiceToggleBtn->isChecked();
@@ -214,9 +205,8 @@ void VoiceChatWidget::updateVoiceUI()
     voiceBtn->setStyleSheet(m_voiceEnabled ? "" : "QPushButton { opacity: 0.5; }");
 }
 
-// ============================================================
-// 录音控制（使用 arecord）
-// ============================================================
+// ----- 录音控制 -----
+
 void VoiceChatWidget::onVoiceBtnPressed()
 {
     if (!m_voiceEnabled) return;
@@ -231,14 +221,13 @@ void VoiceChatWidget::onVoiceBtnReleased()
         return;
     }
     voiceBtn->setText("🎤");
-    stopRecording();   // 停止录音，自动触发识别
+    stopRecording();
 }
 
 void VoiceChatWidget::startRecording()
 {
     if (m_isRecording) return;
 
-    // 生成临时文件名
     m_tempAudioFile = QDir::tempPath() + "/voice_record_" +
                       QString::number(QDateTime::currentMSecsSinceEpoch()) + ".wav";
     if (!QDir(QDir::tempPath()).exists()) {
@@ -282,7 +271,6 @@ void VoiceChatWidget::onRecordingFinished(int exitCode, QProcess::ExitStatus sta
     Q_UNUSED(exitCode);
     Q_UNUSED(status);
 
-    // 检查录音文件是否生成
     QFile file(m_tempAudioFile);
     if (!file.exists() || file.size() == 0) {
         addSystemBubble("录音文件无效或未录制内容，请重试");
@@ -295,7 +283,7 @@ void VoiceChatWidget::onRecordingFinished(int exitCode, QProcess::ExitStatus sta
 
     qDebug() << "录音文件生成，大小：" << file.size() << "字节";
 
-    // 尝试使用 ffmpeg 增益（可选）
+    // 尝试用 ffmpeg 增益
     QString gainFile = QDir::tempPath() + "/voice_gain_" +
                        QString::number(QDateTime::currentMSecsSinceEpoch()) + ".wav";
     QString cmd = QString("ffmpeg -i %1 -af \"volume=2\" %2 -y")
@@ -308,7 +296,6 @@ void VoiceChatWidget::onRecordingFinished(int exitCode, QProcess::ExitStatus sta
         voiceManager->recognizeFromFile(m_tempAudioFile);
     }
 
-    // 清理原始文件
     QTimer::singleShot(5000, [path = m_tempAudioFile]() { QFile::remove(path); });
 
     if (m_recordingProcess) {
@@ -317,9 +304,8 @@ void VoiceChatWidget::onRecordingFinished(int exitCode, QProcess::ExitStatus sta
     }
 }
 
-// ============================================================
-// 语音识别回调
-// ============================================================
+// ----- 语音识别回调 -----
+
 void VoiceChatWidget::onVoiceRecognized(const QString &text)
 {
     if (!text.trimmed().isEmpty()) {
@@ -334,8 +320,9 @@ void VoiceChatWidget::onVoiceError(const QString &error)
 }
 
 // ============================================================
-// 发送文本
+// 文本交互
 // ============================================================
+
 void VoiceChatWidget::onSendTextClicked()
 {
     QString text = textInput->text().trimmed();
@@ -362,12 +349,12 @@ void VoiceChatWidget::onResetClicked()
 }
 
 // ============================================================
-// 聊天气泡辅助
+// 聊天 UI 辅助
 // ============================================================
+
 void VoiceChatWidget::addChatMessage(const ChatMessage &msg)
 {
     QListWidgetItem *item = new QListWidgetItem();
-
     QWidget *container = new QWidget();
     QHBoxLayout *layout = new QHBoxLayout(container);
     layout->setContentsMargins(0, 2, 0, 2);
@@ -412,14 +399,10 @@ void VoiceChatWidget::addChatMessage(const ChatMessage &msg)
     container->updateGeometry();
 
     int labelWidth = label->width();
-    if (labelWidth <= 0) {
-        labelWidth = label->maximumWidth();
-    }
+    if (labelWidth <= 0) labelWidth = label->maximumWidth();
 
     int exactHeight = label->heightForWidth(labelWidth);
-    if (exactHeight < 0) {
-        exactHeight = label->sizeHint().height();
-    }
+    if (exactHeight < 0) exactHeight = label->sizeHint().height();
 
     int totalHeight = exactHeight + 6;
     container->setFixedHeight(totalHeight);
@@ -477,11 +460,12 @@ void VoiceChatWidget::onLinkActivated(const QString &link)
 }
 
 // ============================================================
-// 用户输入处理
+// 核心业务逻辑
 // ============================================================
+
 void VoiceChatWidget::processUserInput(const QString &input)
 {
-    // ---------- 确认挂号状态 ----------
+    // 挂号确认状态
     if (m_state == ChatState::CONFIRM_REGISTER) {
         if (input.contains("确认挂号") || input.contains("确认")) {
             m_state = ChatState::WAITING_DEPT;
@@ -500,7 +484,7 @@ void VoiceChatWidget::processUserInput(const QString &input)
         return;
     }
 
-    // ---------- 等待科室状态 ----------
+    // 等待科室状态
     if (m_state == ChatState::WAITING_DEPT) {
         if (input.contains("取消")) {
             m_state = ChatState::IDLE;
@@ -508,16 +492,20 @@ void VoiceChatWidget::processUserInput(const QString &input)
             speakText("已取消挂号");
             return;
         }
-        QString spokenDept = input.trimmed();
+
         QString matchedDept;
+        QString spokenDept = input.trimmed();
         for (const QString& dept : m_departments) {
             if (spokenDept.contains(dept, Qt::CaseInsensitive) || dept.contains(spokenDept, Qt::CaseInsensitive)) {
                 matchedDept = dept;
                 break;
             }
         }
+
         if (!matchedDept.isEmpty()) {
-            QUrl url(QString("http://127.0.0.1:5000/api/slot/%1").arg(matchedDept));
+            // 查询号源
+            QString backendUrl = Config::instance().getBackendUrl();
+            QUrl url(backendUrl + "/api/slot/" + matchedDept);
             QNetworkRequest request(url);
             QNetworkReply* reply = m_networkManager->get(request);
             connect(reply, &QNetworkReply::finished, [this, reply, matchedDept]() {
@@ -550,7 +538,7 @@ void VoiceChatWidget::processUserInput(const QString &input)
         return;
     }
 
-    // ---------- 收集科室（号源查询）----------
+    // 收集科室（号源查询）
     if (m_state == ChatState::COLLECTING_DEPT) {
         QString matchedDept;
         for (const QString& dept : m_departments) {
@@ -569,7 +557,7 @@ void VoiceChatWidget::processUserInput(const QString &input)
         return;
     }
 
-    // ---------- 意图识别 ----------
+    // 意图识别
     QString intent = detectIntent(input);
     if (intent == "register") {
         m_state = ChatState::CONFIRM_REGISTER;
@@ -593,13 +581,14 @@ void VoiceChatWidget::processUserInput(const QString &input)
         return;
     }
 
-    // ---------- 默认：健康咨询 ----------
+    // 默认：健康咨询
     executeChat(input);
 }
 
 // ============================================================
 // 意图检测
 // ============================================================
+
 QString VoiceChatWidget::detectIntent(const QString &input)
 {
     QString lower = input.trimmed().toLower();
@@ -625,97 +614,12 @@ QString VoiceChatWidget::detectIntent(const QString &input)
     if (lower.contains("帮助") || lower.contains("help")) return "help";
     if (lower.contains("重置") || lower.contains("重启") || lower.contains("清空")) return "reset";
 
-    return "chat";  // 默认咨询
+    return "chat";
 }
 
 // ============================================================
-// 挂号相关函数
+// 挂号
 // ============================================================
-void VoiceChatWidget::executeRegister(const QString &input)
-{
-    QString dept;
-    QStringList knownDepts = {"全科门诊", "外科", "内科", "皮肤科", "儿科", "心血管内科"};
-    for (const auto &d : knownDepts) {
-        if (input.contains(d, Qt::CaseInsensitive)) {
-            dept = d;
-            break;
-        }
-    }
-
-    if (!dept.isEmpty()) {
-        m_state = ChatState::REGISTERING;
-        addSystemBubble(QString("正在为 %1 挂号，请稍候...").arg(dept));
-        speakText(QString("正在为 %1 挂号。").arg(dept));
-
-        QString symptomText;
-        if (!m_lastSymptomSummary.isEmpty()) {
-            symptomText = m_lastSymptomSummary;
-        } else if (!m_lastSymptom.isEmpty()) {
-            symptomText = m_lastSymptom;
-        } else if (!input.isEmpty() && !input.contains("挂号") && !input.contains("预约")) {
-            symptomText = input;
-        } else {
-            symptomText = "无具体症状描述";
-        }
-        if (symptomText.length() > 30) symptomText = symptomText.left(30) + "...";
-
-        QJsonObject jsonObj;
-        jsonObj["department"] = dept;
-        jsonObj["patient_name"] = "用户";
-        jsonObj["symptoms"] = symptomText;
-        QJsonDocument doc(jsonObj);
-        QString postData = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
-
-        QProcess *process = new QProcess(this);
-        process->start("curl", QStringList()
-            << "-s" << "-X" << "POST"
-            << "http://127.0.0.1:5000/api/register"
-            << "-H" << "Content-Type: application/json"
-            << "-d" << postData);
-
-        connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                [this, process, dept](int exitCode, QProcess::ExitStatus status) {
-            if (exitCode == 0 && status == QProcess::NormalExit) {
-                QByteArray data = process->readAllStandardOutput();
-                QJsonDocument doc = QJsonDocument::fromJson(data);
-                if (!doc.isNull() && doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    if (obj["success"].toBool()) {
-                        QString ticketId = obj["ticket_id"].toString();
-                        int queueNum = obj["queue_number"].toInt();
-                        QString deptName = obj["department"].toString();
-
-                        QString response = QStringLiteral(
-                            "<div style='background-color: #e6f4ea; border: 2px solid #34a853; border-radius: 12px; padding: 16px; margin: 4px 0;'>"
-                            "<div style='font-size:18px; font-weight:bold; color:#1e7e34; margin-bottom:10px;'>✅ 挂号成功</div>"
-                            "<table style='font-size:15px; color:#2c3e50; line-height:2;'>"
-                            "<tr><td style='padding-right:16px; color:#5f6b7a;'>科室</td><td style='font-weight:bold;'>%1</td></tr>"
-                            "<tr><td style='padding-right:16px; color:#5f6b7a;'>票号</td><td style='font-weight:bold; color:#1a73e8;'>%2</td></tr>"
-                            "<tr><td style='padding-right:16px; color:#5f6b7a;'>排队号</td><td style='font-weight:bold; font-size:20px; color:#d93025;'>%3</td></tr>"
-                            "</table></div>"
-                        ).arg(deptName, ticketId).arg(queueNum);
-
-                        addSystemBubble(response);
-                        speakText(QString("挂号成功，科室 %1，票号 %2，排队号 %3。").arg(deptName, ticketId).arg(queueNum));
-                    } else {
-                        QString msg = obj["message"].toString("未知错误");
-                        addSystemBubble("挂号失败：" + msg);
-                        speakText("挂号失败。");
-                    }
-                }
-            } else {
-                addSystemBubble("挂号失败。请检查后端服务是否运行。");
-                speakText("挂号失败。");
-            }
-            m_state = ChatState::IDLE;
-            process->deleteLater();
-        });
-    } else {
-        addSystemBubble("你想挂哪个科室的号？例如：全科门诊、心血管内科...");
-        speakText("你想挂哪个科室的号？");
-        m_state = ChatState::COLLECTING_DEPT;
-    }
-}
 
 void VoiceChatWidget::doRegister(const QString &department)
 {
@@ -723,123 +627,93 @@ void VoiceChatWidget::doRegister(const QString &department)
     addSystemBubble(QString("正在为 %1 挂号，请稍候...").arg(department));
     speakText(QString("正在为 %1 挂号。").arg(department));
 
-    QString symptomText;
-    if (!m_lastSymptomSummary.isEmpty()) {
-        symptomText = m_lastSymptomSummary;
-    } else if (!m_lastSymptom.isEmpty()) {
-        symptomText = m_lastSymptom;
-    } else {
-        symptomText = "无具体症状描述";
-    }
+    // 使用症状摘要（如有）
+    QString symptomText = m_lastSymptomSummary.isEmpty() ? "无具体症状描述" : m_lastSymptomSummary;
     if (symptomText.length() > 30) symptomText = symptomText.left(30) + "...";
 
-    QJsonObject jsonObj;
-    jsonObj["department"] = department;
-    jsonObj["patient_name"] = m_patientName.isEmpty() ? "用户" : m_patientName;
-    jsonObj["symptoms"] = symptomText;
-    QJsonDocument doc(jsonObj);
-    QString postData = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+    // 使用 ApiClient 统一管理 HTTP 请求
+    ApiClient::instance().registerPatient(department, "用户", symptomText,
+        [this, department](bool ok, const QJsonObject& obj) {
+            if (ok) {
+                QString ticketId = obj["ticket_id"].toString();
+                int queueNum = obj["queue_number"].toInt();
+                QString deptName = obj["department"].toString();
 
-    QProcess *process = new QProcess(this);
-    process->start("curl", QStringList()
-        << "-s" << "-X" << "POST"
-        << "http://127.0.0.1:5000/api/register"
-        << "-H" << "Content-Type: application/json"
-        << "-d" << postData);
-
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            [this, process, department](int exitCode, QProcess::ExitStatus status) {
-        if (exitCode == 0 && status == QProcess::NormalExit) {
-            QByteArray data = process->readAllStandardOutput();
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            if (!doc.isNull() && doc.isObject()) {
-                QJsonObject obj = doc.object();
-                if (obj["success"].toBool()) {
-                    QString ticketId = obj["ticket_id"].toString();
-                    int queueNum = obj["queue_number"].toInt();
-                    QString deptName = obj["department"].toString();
-
-                    QString response = QStringLiteral(
-                        "<div style='background-color: #e6f4ea; border: 2px solid #34a853; border-radius: 12px; padding: 16px; margin: 4px 0;'>"
-                        "<div style='font-size:18px; font-weight:bold; color:#1e7e34; margin-bottom:10px;'>✅ 挂号成功</div>"
-                        "<table style='font-size:15px; color:#2c3e50; line-height:2;'>"
-                        "<tr><td style='padding-right:16px; color:#5f6b7a;'>科室</td><td style='font-weight:bold;'>%1</td></tr>"
-                        "<tr><td style='padding-right:16px; color:#5f6b7a;'>票号</td><td style='font-weight:bold; color:#1a73e8;'>%2</td></tr>"
-                        "<tr><td style='padding-right:16px; color:#5f6b7a;'>排队号</td><td style='font-weight:bold; font-size:20px; color:#d93025;'>%3</td></tr>"
-                        "</table></div>"
-                    ).arg(deptName, ticketId).arg(queueNum);
-
-                    addSystemBubble(response);
-                    speakText(QString("挂号成功，科室 %1，票号 %2，排队号 %3。").arg(deptName, ticketId).arg(queueNum));
-                } else {
-                    QString msg = obj["message"].toString("未知错误");
-                    addSystemBubble("挂号失败：" + msg);
-                    speakText("挂号失败。");
-                }
+                QString response = buildRegisterSuccessHtml(deptName, ticketId, queueNum);
+                addSystemBubble(response);
+                speakText(QString("挂号成功，科室 %1，票号 %2，排队号 %3。")
+                          .arg(deptName, ticketId).arg(queueNum));
+            } else {
+                QString msg = obj["message"].toString("挂号失败");
+                addSystemBubble("挂号失败：" + msg);
+                speakText("挂号失败");
             }
-        } else {
-            addSystemBubble("挂号失败。请检查后端服务是否运行。");
-            speakText("挂号失败。");
+            m_state = ChatState::IDLE;
         }
-        m_state = ChatState::IDLE;
-        process->deleteLater();
-    });
+    );
+}
+
+QString VoiceChatWidget::buildRegisterSuccessHtml(const QString &dept, const QString &ticketId, int queueNum)
+{
+    return QString(
+        "<div style='background-color: #e6f4ea; border: 2px solid #34a853; border-radius: 12px; padding: 16px; margin: 4px 0;'>"
+        "<div style='font-size:18px; font-weight:bold; color:#1e7e34; margin-bottom:10px;'>✅ 挂号成功</div>"
+        "<table style='font-size:15px; color:#2c3e50; line-height:2;'>"
+        "<tr><td style='padding-right:16px; color:#5f6b7a;'>科室</td><td style='font-weight:bold;'>%1</td></tr>"
+        "<tr><td style='padding-right:16px; color:#5f6b7a;'>票号</td><td style='font-weight:bold; color:#1a73e8;'>%2</td></tr>"
+        "<tr><td style='padding-right:16px; color:#5f6b7a;'>排队号</td><td style='font-weight:bold; font-size:20px; color:#d93025;'>%3</td></tr>"
+        "</table></div>"
+    ).arg(dept, ticketId).arg(queueNum);
 }
 
 // ============================================================
 // 查询号源
 // ============================================================
+
 void VoiceChatWidget::executeQuerySlots(const QString &department)
 {
-    QString dept = department;
-
-    if (!dept.isEmpty()) {
-        m_lastQueryDept = dept;
+    if (!department.isEmpty()) {
+        m_lastQueryDept = department;
         m_state = ChatState::QUERYING_SLOTS;
-        addSystemBubble(QString("正在查询 %1 的号源...").arg(dept));
-        speakText(QString("正在查询 %1 的号源。").arg(dept));
+        addSystemBubble(QString("正在查询 %1 的号源...").arg(department));
+        speakText(QString("正在查询 %1 的号源。").arg(department));
 
-        QUrl url(QString("http://127.0.0.1:5000/api/slot/%1").arg(dept));
+        QString backendUrl = Config::instance().getBackendUrl();
+        QUrl url(backendUrl + "/api/slot/" + department);
         QNetworkRequest request(url);
         QNetworkReply *reply = m_networkManager->get(request);
 
-        connect(reply, &QNetworkReply::finished, [this, reply, dept]() {
+        connect(reply, &QNetworkReply::finished, [this, reply, department]() {
             if (reply->error() != QNetworkReply::NoError) {
-                QString errorMsg;
-                if (reply->error() == QNetworkReply::ContentNotFoundError) {
-                    errorMsg = QString("未找到科室“%1”的号源信息，请确认科室名称是否正确。").arg(dept);
-                } else {
-                    errorMsg = "查询号源失败：" + reply->errorString();
-                }
+                QString errorMsg = (reply->error() == QNetworkReply::ContentNotFoundError) ?
+                    QString("未找到科室“%1”的号源信息，请确认科室名称是否正确。").arg(department) :
+                    QString("查询号源失败：" + reply->errorString());
                 addSystemBubble(errorMsg);
                 speakText("查询号源失败。");
             } else {
                 QByteArray data = reply->readAll();
                 QJsonDocument doc = QJsonDocument::fromJson(data);
-                if (!doc.isNull() && doc.isObject()) {
+                if (doc.isObject()) {
                     QJsonObject obj = doc.object();
                     if (obj["success"].toBool()) {
                         int remaining = obj["remaining_slots"].toInt();
                         QString date = QDate::currentDate().toString("yyyy-MM-dd");
 
-                        QString result;
-                        if (remaining > 0) {
-                            result = QStringLiteral(
+                        QString result = (remaining > 0) ?
+                            QString(
                                 "<div style='background-color: #f0f8ff; border-radius: 12px; padding: 16px; border: 1px solid #c0d4e6;'>"
                                 "<div style='font-size:16px; font-weight:bold; margin-bottom:8px;'>🏥 %1 号源信息</div>"
                                 "<div style='line-height:1.8;'>"
                                 "<b>📅 日期：</b> %2<br>"
                                 "<b style='color:#1a73e8; font-size:18px;'>✅ 剩余号源：%3</b><br>"
-                                "你可以说 <b>“挂号”</b> 立即预约。"
+                                "你可以说 <b>\"挂号\"</b> 立即预约。"
                                 "</div>"
                                 "<div style='margin-top:12px; border-top:1px dashed #ccc; padding-top:8px;'>"
                                 "<a href='refresh_slots' style='color:#1a73e8; text-decoration:none; font-weight:bold;'>🔄 刷新号源</a>"
                                 "</div>"
                                 "</div>"
-                            ).arg(dept, date).arg(remaining);
-                            speakText(QString("%1 剩余 %2 个号源。").arg(dept).arg(remaining));
-                        } else {
-                            result = QStringLiteral(
+                            ).arg(department, date).arg(remaining) :
+                            QString(
                                 "<div style='background-color: #fff0f0; border-radius: 12px; padding: 16px; border: 1px solid #e6b0b0;'>"
                                 "<div style='font-size:16px; font-weight:bold; margin-bottom:8px;'>🏥 %1 号源信息</div>"
                                 "<div style='line-height:1.8;'>"
@@ -850,10 +724,12 @@ void VoiceChatWidget::executeQuerySlots(const QString &department)
                                 "<a href='refresh_slots' style='color:#1a73e8; text-decoration:none; font-weight:bold;'>🔄 刷新号源</a>"
                                 "</div>"
                                 "</div>"
-                            ).arg(dept);
-                            speakText(QString("%1 没有可用号源。").arg(dept));
-                        }
+                            ).arg(department);
+
                         addSystemBubble(result);
+                        speakText(remaining > 0 ?
+                                  QString("%1 剩余 %2 个号源。").arg(department).arg(remaining) :
+                                  QString("%1 没有可用号源。").arg(department));
                     } else {
                         addSystemBubble(obj["message"].toString());
                     }
@@ -874,109 +750,42 @@ void VoiceChatWidget::executeQuerySlots(const QString &department)
 // ============================================================
 // 查询记录
 // ============================================================
+
 void VoiceChatWidget::executeQueryRecords()
 {
     m_state = ChatState::QUERYING_RECORDS;
     addSystemBubble("正在获取你的挂号记录...");
     speakText("正在获取你的挂号记录。");
 
-    QUrl url("http://127.0.0.1:5000/api/registrations");
+    QString backendUrl = Config::instance().getBackendUrl();
+    QUrl url(backendUrl + "/api/registrations");
     QNetworkRequest request(url);
     QNetworkReply *reply = m_networkManager->get(request);
 
     connect(reply, &QNetworkReply::finished, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
-            QProcess *process = new QProcess(this);
-            process->start("curl", QStringList() << "-s" << "http://127.0.0.1:5000/api/registrations");
-            connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                    [this, process](int exitCode, QProcess::ExitStatus status) {
-                if (exitCode == 0 && status == QProcess::NormalExit) {
-                    QByteArray data = process->readAllStandardOutput();
-                    QJsonDocument doc = QJsonDocument::fromJson(data);
-                    if (doc.isObject()) {
-                        QJsonObject obj = doc.object();
-                        if (obj["success"].toBool()) {
-                            QJsonArray arr = obj["data"].toArray();
-                            displayLatestRecord(arr);
-                        } else {
-                            addSystemBubble("获取记录失败：" + obj["message"].toString());
-                        }
-                    }
-                } else {
-                    addSystemBubble("获取记录失败，请检查网络或后端服务。");
-                }
-                m_state = ChatState::IDLE;
-                process->deleteLater();
-            });
-        } else {
-            QByteArray data = reply->readAll();
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            if (doc.isObject()) {
-                QJsonObject obj = doc.object();
-                if (obj["success"].toBool()) {
-                    QJsonArray arr = obj["data"].toArray();
-                    displayLatestRecord(arr);
-                } else {
-                    addSystemBubble("获取记录失败：" + obj["message"].toString());
-                }
-            } else {
-                addSystemBubble("返回数据格式错误，请稍后重试。");
-            }
+            addSystemBubble("获取记录失败：" + reply->errorString());
             m_state = ChatState::IDLE;
             reply->deleteLater();
+            return;
         }
-    });
-}
 
-void VoiceChatWidget::displayRecords(const QJsonArray &records)
-{
-    if (records.isEmpty()) {
-        addSystemBubble("暂无挂号记录。你可以说“挂号”来预约。");
-        return;
-    }
+        QByteArray data = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        reply->deleteLater();
 
-    QString html = "<div style='margin: 4px 0;'>";
-    for (const auto &val : records) {
-        QJsonObject obj = val.toObject();
-        QString ticket = obj["ticket_id"].toString();
-        QString dept = obj["department"].toString();
-        QString doctor = obj["doctor"].toString();
-        QString date = obj["date"].toString();
-        QString symptoms = obj["symptoms"].toString();
-        QString status = obj["status"].toString();
-        QString created = obj["created_at"].toString();
-
-        QString statusText, statusColor;
-        if (status == "waiting") {
-            statusText = "待就诊";
-            statusColor = "#d93025";
-        } else if (status == "completed") {
-            statusText = "已完成";
-            statusColor = "#34a853";
-        } else if (status == "cancelled") {
-            statusText = "已取消";
-            statusColor = "#8899aa";
+        if (doc.isObject()) {
+            QJsonObject obj = doc.object();
+            if (obj["success"].toBool()) {
+                displayLatestRecord(obj["data"].toArray());
+            } else {
+                addSystemBubble("获取记录失败：" + obj["message"].toString());
+            }
         } else {
-            statusText = status;
-            statusColor = "#8899aa";
+            addSystemBubble("返回数据格式错误，请稍后重试。");
         }
-
-        html += QString(
-            "<div style='background-color: #f8f9fa; border: 1px solid #d5e4ed; border-radius: 8px; padding: 10px 14px; margin: 6px 0;'>"
-            "<div style='font-weight: bold; color: #1a73e8;'>%1 - %2</div>"
-            "<div style='font-size: 14px; color: #2c3e50;'>"
-            "医生：%3<br>"
-            "日期：%4<br>"
-            "症状：%5<br>"
-            "状态：<span style='font-weight: bold; color: %6;'>%7</span><br>"
-            "挂号时间：%8"
-            "</div>"
-            "</div>"
-        ).arg(ticket, dept, doctor, date, symptoms,
-              statusColor, statusText, created);
-    }
-    html += "</div>";
-    addSystemBubble(html);
+        m_state = ChatState::IDLE;
+    });
 }
 
 void VoiceChatWidget::displayLatestRecord(const QJsonArray &records)
@@ -995,19 +804,10 @@ void VoiceChatWidget::displayLatestRecord(const QJsonArray &records)
     QString created = obj["created_at"].toString();
 
     QString statusText, statusColor;
-    if (status == "waiting") {
-        statusText = "待就诊";
-        statusColor = "#d93025";
-    } else if (status == "completed") {
-        statusText = "已完成";
-        statusColor = "#34a853";
-    } else if (status == "cancelled") {
-        statusText = "已取消";
-        statusColor = "#8899aa";
-    } else {
-        statusText = status;
-        statusColor = "#8899aa";
-    }
+    if (status == "waiting") { statusText = "待就诊"; statusColor = "#d93025"; }
+    else if (status == "completed") { statusText = "已完成"; statusColor = "#34a853"; }
+    else if (status == "cancelled") { statusText = "已取消"; statusColor = "#8899aa"; }
+    else { statusText = status; statusColor = "#8899aa"; }
 
     QString html = QString(
         "<div style='background-color: #f8f9fa; border: 1px solid #d5e4ed; border-radius: 8px; padding: 10px 14px; margin: 6px 0;'>"
@@ -1021,8 +821,7 @@ void VoiceChatWidget::displayLatestRecord(const QJsonArray &records)
         "<a href='switch_to_more_tools' style='color: #1a73e8; text-decoration: underline;'>点击查看全部</a>"
         "</div>"
         "</div>"
-    ).arg(ticket, dept, doctor, symptoms,
-          statusColor, statusText, created)
+    ).arg(ticket, dept, doctor, symptoms, statusColor, statusText, created)
      .arg(records.size());
 
     addSystemBubble(html);
@@ -1031,27 +830,28 @@ void VoiceChatWidget::displayLatestRecord(const QJsonArray &records)
 // ============================================================
 // 帮助
 // ============================================================
+
 void VoiceChatWidget::executeHelp()
 {
     QString bgColor = m_isDarkMode ? "#252535" : "#f8f9fa";
     QString borderColor = m_isDarkMode ? "#3a4a6a" : "#d5e4ed";
-    QString textColor = m_isDarkMode ? "#f0f4f8" : "#2c3e50";  
+    QString textColor = m_isDarkMode ? "#f0f4f8" : "#2c3e50";
     QString titleColor = m_isDarkMode ? "#ffffff" : "#2c5f8a";
-    QString exampleColor = m_isDarkMode ? "#b0c0d0" : "#5f6b7a"; 
+    QString exampleColor = m_isDarkMode ? "#b0c0d0" : "#5f6b7a";
     QString dividerColor = m_isDarkMode ? "#3a4a5a" : "#e0e0e0";
     QString footerColor = m_isDarkMode ? "#7ab8d9" : "#7ab8d9";
 
-    QString helpText = QStringLiteral(
+    QString helpText = QString(
         "<div style='background-color: %1; border: 1px solid %2; border-radius: 12px; padding: 16px 20px; margin: 4px 0; line-height: 1.6;'>"
         "<div style='font-size: 18px; font-weight: bold; color: %3; margin-bottom: 8px;'>功能介绍</div>"
         "<div style='font-size: 14px; color: %4;'>"
         "你可以使用 <b>语音</b> 或 <b>文字</b> 交互。<br><br>"
         "<b>📋 挂号：</b> 预约挂号<br>"
-        "<span style='padding-left: 20px; color: %5;'>例如：“挂神经内科”</span><br>"
+        "<span style='padding-left: 20px; color: %5;'>例如：\"挂神经内科\"</span><br>"
         "<b>🔍 查询号源：</b> 查看可用号源<br>"
-        "<span style='padding-left: 20px; color: %5;'>例如：“某科室有没有号源”</span><br>"
+        "<span style='padding-left: 20px; color: %5;'>例如：\"某科室有没有号源\"</span><br>"
         "<b>📄 记录：</b> 查看历史挂号记录<br>"
-        "<span style='padding-left: 20px; color: %5;'>例如：“我的记录”</span><br>"
+        "<span style='padding-left: 20px; color: %5;'>例如：\"我的记录\"</span><br>"
         "<b>🔄 重置：</b> 重新开始<br>"
         "</div>"
         "<div style='margin-top: 10px; padding-top: 8px; border-top: 1px solid %6; color: %7; font-size: 13px;'>"
@@ -1075,12 +875,16 @@ void VoiceChatWidget::executeHelp()
 // ============================================================
 // 健康咨询
 // ============================================================
+
 void VoiceChatWidget::executeChat(const QString &input)
 {
     addSystemBubble("正在思考...");
-    QUrl url("http://127.0.0.1:5000/api/chat");
+
+    QString backendUrl = Config::instance().getBackendUrl();
+    QUrl url(backendUrl + "/api/chat");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
     QJsonObject obj;
     obj["question"] = input;
     QNetworkReply* reply = m_networkManager->post(request, QJsonDocument(obj).toJson());
@@ -1121,11 +925,14 @@ void VoiceChatWidget::executeChat(const QString &input)
 // ============================================================
 // 科室列表
 // ============================================================
+
 void VoiceChatWidget::loadDepartments(std::function<void()> callback)
 {
-    QUrl url("http://127.0.0.1:5000/api/departments");
+    QString backendUrl = Config::instance().getBackendUrl();
+    QUrl url(backendUrl + "/api/departments");
     QNetworkRequest request(url);
     QNetworkReply* reply = m_networkManager->get(request);
+
     connect(reply, &QNetworkReply::finished, [this, reply, callback]() {
         if (reply->error() == QNetworkReply::NoError) {
             QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
@@ -1141,9 +948,7 @@ void VoiceChatWidget::loadDepartments(std::function<void()> callback)
             m_departments << "全科门诊" << "外科" << "内科" << "皮肤科" << "儿科" << "心血管内科";
         }
         reply->deleteLater();
-        if (callback) {
-            callback();
-        }
+        if (callback) callback();
     });
 }
 
@@ -1164,9 +969,10 @@ void VoiceChatWidget::showDepartmentCard()
 // ============================================================
 // TTS 语音输出
 // ============================================================
+
 void VoiceChatWidget::speakText(const QString &text)
 {
-    if (!m_voiceEnabled) return;   // 语音关闭时不朗读
+    if (!m_voiceEnabled) return;
 
     QString plainText = text;
     plainText.replace(QRegularExpression("<[^>]*>"), "");
@@ -1176,6 +982,7 @@ void VoiceChatWidget::speakText(const QString &text)
 // ============================================================
 // 重置对话
 // ============================================================
+
 void VoiceChatWidget::resetConversation()
 {
     m_state = ChatState::IDLE;

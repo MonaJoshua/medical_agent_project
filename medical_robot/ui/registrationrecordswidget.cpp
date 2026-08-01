@@ -1,3 +1,6 @@
+// registrationrecordswidget.cpp
+// 挂号记录列表组件
+
 #include "registrationrecordswidget.h"
 #include "thememanager.h"
 #include <QVBoxLayout>
@@ -16,31 +19,14 @@
 #include <QMessageBox>
 #include <QTimer>
 #include <algorithm>
-#include <QFile>
-#include <QTextStream>
-#include <QDateTime>
-
-static void writeLog(const QString &msg)
-{
-    QFile file("/tmp/registration.log");
-    if (file.open(QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&file);
-        out << QDateTime::currentDateTime().toString("hh:mm:ss.zzz") << " " << msg << "\n";
-        file.close();
-    }
-}
 
 class TableUpdateGuard {
 public:
     TableUpdateGuard(QTableWidget *table) : m_table(table) {
         if (m_table) m_table->setUpdatesEnabled(false);
-        writeLog("TableUpdateGuard: 禁用更新");
     }
     ~TableUpdateGuard() {
-        if (m_table) {
-            m_table->setUpdatesEnabled(true);
-            writeLog("TableUpdateGuard: 恢复更新");
-        }
+        if (m_table) m_table->setUpdatesEnabled(true);
     }
 private:
     QTableWidget *m_table;
@@ -52,11 +38,10 @@ RegistrationRecordsWidget::RegistrationRecordsWidget(QWidget *parent)
     , m_dateFilterEnabled(false)
     , isProcessing(false)
 {
-    writeLog("RegistrationRecordsWidget 构造函数开始");
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
 
-    // ---- 头部布局 ----
+    // 头部布局
     QHBoxLayout *headerLayout = new QHBoxLayout();
     headerLayout->setContentsMargins(12, 8, 12, 8);
     headerLayout->setSpacing(12);
@@ -80,9 +65,11 @@ RegistrationRecordsWidget::RegistrationRecordsWidget(QWidget *parent)
     headerLayout->addWidget(backBtn);
 
     headerLayout->addStretch();
+
     QLabel *recordsTitle = new QLabel("挂号记录");
     recordsTitle->setFont(QFont("", 18, QFont::Bold));
     headerLayout->addWidget(recordsTitle);
+
     headerLayout->addStretch();
 
     dateEdit = new QDateEdit();
@@ -92,7 +79,7 @@ RegistrationRecordsWidget::RegistrationRecordsWidget(QWidget *parent)
     dateEdit->setSpecialValueText("选择日期");
     dateEdit->setDate(QDate::currentDate());
     dateEdit->setFixedHeight(36);
-    // 日历控件样式（弹出部分）
+
     QCalendarWidget *calendar = dateEdit->calendarWidget();
     calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
     calendar->setStyleSheet(
@@ -121,12 +108,12 @@ RegistrationRecordsWidget::RegistrationRecordsWidget(QWidget *parent)
 
     mainLayout->addLayout(headerLayout);
 
-    // ---- 防抖定时器 ----
+    // 防抖定时器（窗口大小变化时延迟刷新列宽）
     resizeTimer = new QTimer(this);
     resizeTimer->setSingleShot(true);
     connect(resizeTimer, &QTimer::timeout, this, &RegistrationRecordsWidget::applyFilter);
 
-    // ---- 表格 ----
+    // 表格
     recordTable = new QTableWidget(this);
     recordTable->setColumnCount(5);
     recordTable->setHorizontalHeaderLabels({"单号", "科室", "日期", "状态", "操作"});
@@ -141,27 +128,18 @@ RegistrationRecordsWidget::RegistrationRecordsWidget(QWidget *parent)
     recordTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     mainLayout->addWidget(recordTable);
 
-    // 初始加载
     loadRecords();
 
-    // 主题切换更新
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
-        this, [this](){
-            writeLog("主题切换，更新表格");
-            updateTableStyle();
-            applyFilter();
-        });
-
-    writeLog("RegistrationRecordsWidget 构造函数结束");
+            this, [this]() {
+                updateTableStyle();
+                applyFilter();
+            });
 }
 
 void RegistrationRecordsWidget::loadRecords()
 {
-    writeLog("loadRecords 开始");
-    if (isProcessing) {
-        writeLog("loadRecords 忽略（已有请求）");
-        return;
-    }
+    if (isProcessing) return;
     isProcessing = true;
     if (refreshBtn) refreshBtn->setEnabled(false);
 
@@ -172,33 +150,8 @@ void RegistrationRecordsWidget::loadRecords()
     QTimer *timeoutTimer = new QTimer(this);
     timeoutTimer->setSingleShot(true);
     connect(timeoutTimer, &QTimer::timeout, [this, reply, timeoutTimer]() {
-        writeLog("网络请求超时，强制恢复");
         if (reply && reply->isRunning()) reply->abort();
-        QProcess *curlProcess = new QProcess(this);
-        connect(curlProcess, &QProcess::finished, [this, curlProcess](int exitCode, QProcess::ExitStatus status) {
-            writeLog("curl 进程完成，退出码=" + QString::number(exitCode));
-            if (exitCode == 0 && status == QProcess::NormalExit) {
-                QByteArray data = curlProcess->readAllStandardOutput();
-                QJsonDocument doc = QJsonDocument::fromJson(data);
-                if (doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    if (obj["success"].toBool()) {
-                        displayRecords(obj["data"].toArray());
-                    } else {
-                        showError("获取记录失败：" + obj["message"].toString());
-                    }
-                } else {
-                    showError("返回数据格式错误");
-                }
-            } else {
-                showError("curl 请求失败");
-            }
-            curlProcess->deleteLater();
-            if (refreshBtn) refreshBtn->setEnabled(true);
-            isProcessing = false;
-            writeLog("loadRecords 完成（curl 分支）");
-        });
-        curlProcess->start("curl", QStringList() << "-s" << "http://127.0.0.1:5000/api/registrations");
+        fetchWithCurl();
         timeoutTimer->deleteLater();
     });
     timeoutTimer->start(10000);
@@ -206,34 +159,9 @@ void RegistrationRecordsWidget::loadRecords()
     connect(reply, &QNetworkReply::finished, [this, reply, timeoutTimer]() {
         timeoutTimer->stop();
         timeoutTimer->deleteLater();
-        writeLog("网络请求完成，错误=" + QString::number(reply->error()));
 
         if (reply->error() != QNetworkReply::NoError) {
-            QProcess *curlProcess = new QProcess(this);
-            connect(curlProcess, &QProcess::finished, [this, curlProcess](int exitCode, QProcess::ExitStatus status) {
-                writeLog("curl 进程完成，退出码=" + QString::number(exitCode));
-                if (exitCode == 0 && status == QProcess::NormalExit) {
-                    QByteArray data = curlProcess->readAllStandardOutput();
-                    QJsonDocument doc = QJsonDocument::fromJson(data);
-                    if (doc.isObject()) {
-                        QJsonObject obj = doc.object();
-                        if (obj["success"].toBool()) {
-                            displayRecords(obj["data"].toArray());
-                        } else {
-                            showError("获取记录失败：" + obj["message"].toString());
-                        }
-                    } else {
-                        showError("返回数据格式错误");
-                    }
-                } else {
-                    showError("curl 请求失败");
-                }
-                curlProcess->deleteLater();
-                if (refreshBtn) refreshBtn->setEnabled(true);
-                isProcessing = false;
-                writeLog("loadRecords 完成（curl 分支）");
-            });
-            curlProcess->start("curl", QStringList() << "-s" << "http://127.0.0.1:5000/api/registrations");
+            fetchWithCurl();
         } else {
             QByteArray data = reply->readAll();
             QJsonDocument doc = QJsonDocument::fromJson(data);
@@ -251,13 +179,38 @@ void RegistrationRecordsWidget::loadRecords()
         reply->deleteLater();
         if (refreshBtn) refreshBtn->setEnabled(true);
         isProcessing = false;
-        writeLog("loadRecords 完成（网络分支）");
     });
+}
+
+void RegistrationRecordsWidget::fetchWithCurl()
+{
+    QProcess *curlProcess = new QProcess(this);
+    connect(curlProcess, &QProcess::finished, [this, curlProcess](int exitCode, QProcess::ExitStatus status) {
+        if (exitCode == 0 && status == QProcess::NormalExit) {
+            QByteArray data = curlProcess->readAllStandardOutput();
+            QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (doc.isObject()) {
+                QJsonObject obj = doc.object();
+                if (obj["success"].toBool()) {
+                    displayRecords(obj["data"].toArray());
+                } else {
+                    showError("获取记录失败：" + obj["message"].toString());
+                }
+            } else {
+                showError("返回数据格式错误");
+            }
+        } else {
+            showError("网络请求失败，请检查后端服务");
+        }
+        curlProcess->deleteLater();
+        if (refreshBtn) refreshBtn->setEnabled(true);
+        isProcessing = false;
+    });
+    curlProcess->start("curl", QStringList() << "-s" << "http://127.0.0.1:5000/api/registrations");
 }
 
 void RegistrationRecordsWidget::showError(const QString &msg)
 {
-    writeLog("showError: " + msg);
     recordTable->setRowCount(1);
     recordTable->setColumnCount(1);
     recordTable->setHorizontalHeaderLabels({"提示"});
@@ -268,14 +221,12 @@ void RegistrationRecordsWidget::showError(const QString &msg)
 
 void RegistrationRecordsWidget::displayRecords(const QJsonArray &records)
 {
-    writeLog("displayRecords 开始，记录数=" + QString::number(records.size()));
     m_allRecords = records;
     applyFilter();
 }
 
 void RegistrationRecordsWidget::resetFilter()
 {
-    writeLog("resetFilter 被调用");
     m_dateFilterEnabled = false;
     dateEdit->setDate(QDate());
     dateEdit->setSpecialValueText("选择日期");
@@ -285,13 +236,12 @@ void RegistrationRecordsWidget::resetFilter()
 
 void RegistrationRecordsWidget::onDateChanged(const QDate &date)
 {
-    writeLog("onDateChanged: " + date.toString("yyyy-MM-dd"));
+    Q_UNUSED(date);
     static QTimer *debounceTimer = nullptr;
     if (!debounceTimer) {
         debounceTimer = new QTimer(this);
         debounceTimer->setSingleShot(true);
         connect(debounceTimer, &QTimer::timeout, [this]() {
-            writeLog("debounceTimer 触发");
             m_dateFilterEnabled = dateEdit->date().isValid();
             applyFilter();
         });
@@ -301,11 +251,7 @@ void RegistrationRecordsWidget::onDateChanged(const QDate &date)
 
 void RegistrationRecordsWidget::applyFilter()
 {
-    writeLog("applyFilter 开始");
-    if (!recordTable || !dateEdit) {
-        writeLog("applyFilter 跳过（空指针）");
-        return;
-    }
+    if (!recordTable || !dateEdit) return;
 
     recordTable->setFont(QFont("", 16));
     recordTable->horizontalHeader()->setFont(QFont("", 16, QFont::Bold));
@@ -322,12 +268,13 @@ void RegistrationRecordsWidget::applyFilter()
     } else {
         for (const auto &val : m_allRecords) {
             QJsonObject obj = val.toObject();
-            if (QDate::fromString(obj["date"].toString(), "yyyy-MM-dd") == selectedDate)
+            if (QDate::fromString(obj["date"].toString(), "yyyy-MM-dd") == selectedDate) {
                 filtered.append(obj);
+            }
         }
     }
 
-    // 排序
+    // 按日期降序排序
     QList<QJsonValue> list;
     for (int i = 0; i < filtered.size(); ++i) list.append(filtered[i]);
     std::sort(list.begin(), list.end(), [](const QJsonValue &a, const QJsonValue &b) {
@@ -336,7 +283,6 @@ void RegistrationRecordsWidget::applyFilter()
     filtered = QJsonArray();
     for (const auto &v : list) filtered.append(v);
 
-    // 渲染
     recordTable->clearContents();
     recordTable->setRowCount(0);
     recordTable->setColumnCount(5);
@@ -346,13 +292,14 @@ void RegistrationRecordsWidget::applyFilter()
 
     if (filtered.isEmpty()) {
         recordTable->setRowCount(1);
-        recordTable->setItem(0, 0, new QTableWidgetItem("暂无匹配的记录（或无法获取记录）"));
+        recordTable->setItem(0, 0, new QTableWidgetItem("暂无匹配的记录"));
         recordTable->setSpan(0, 0, 1, 5);
         for (int col = 1; col < 5; ++col) recordTable->setItem(0, col, nullptr);
         recordTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-        for (int col = 1; col < 5; ++col) recordTable->horizontalHeader()->setSectionResizeMode(col, QHeaderView::ResizeToContents);
+        for (int col = 1; col < 5; ++col) {
+            recordTable->horizontalHeader()->setSectionResizeMode(col, QHeaderView::ResizeToContents);
+        }
         updateTableStyle();
-        writeLog("applyFilter 完成（空）");
         return;
     }
 
@@ -377,19 +324,11 @@ void RegistrationRecordsWidget::applyFilter()
             statusText = status; statusColor = "#8899aa"; statusBg = isDark ? "#3a3a3a" : "#f1f3f4";
         }
 
-        QTableWidgetItem *ticketItem = new QTableWidgetItem(ticket);
-        ticketItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 0, ticketItem);
+        recordTable->setItem(row, 0, makeTableItem(ticket));
+        recordTable->setItem(row, 1, makeTableItem(dept));
+        recordTable->setItem(row, 2, makeTableItem(date));
 
-        QTableWidgetItem *deptItem = new QTableWidgetItem(dept);
-        deptItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 1, deptItem);
-
-        QTableWidgetItem *dateItem = new QTableWidgetItem(date);
-        dateItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 2, dateItem);
-
-        // 状态（Widget）
+        // 状态标签
         QWidget *statusWidget = new QWidget();
         QHBoxLayout *statusLayout = new QHBoxLayout(statusWidget);
         statusLayout->setContentsMargins(0, 0, 0, 0);
@@ -401,7 +340,7 @@ void RegistrationRecordsWidget::applyFilter()
         statusLayout->addWidget(statusLabel);
         recordTable->setCellWidget(row, 3, statusWidget);
 
-        // 操作
+        // 查看按钮
         QPushButton *viewBtn = new QPushButton("查看");
         viewBtn->setProperty("ticketId", ticket);
         viewBtn->setStyleSheet(isDark ?
@@ -415,8 +354,9 @@ void RegistrationRecordsWidget::applyFilter()
         recordTable->setCellWidget(row, 4, viewBtn);
     }
 
-    for (int row = 0; row < recordTable->rowCount(); ++row)
+    for (int row = 0; row < recordTable->rowCount(); ++row) {
         recordTable->setRowHeight(row, 50);
+    }
 
     int tableWidth = qMax(recordTable->width(), 800);
     recordTable->setColumnWidth(0, tableWidth * 0.20);
@@ -429,7 +369,13 @@ void RegistrationRecordsWidget::applyFilter()
     recordTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
 
     updateTableStyle();
-    writeLog("applyFilter 完成");
+}
+
+QTableWidgetItem* RegistrationRecordsWidget::makeTableItem(const QString &text)
+{
+    QTableWidgetItem *item = new QTableWidgetItem(text);
+    item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    return item;
 }
 
 void RegistrationRecordsWidget::resizeEvent(QResizeEvent *event)
@@ -443,18 +389,14 @@ void RegistrationRecordsWidget::resizeEvent(QResizeEvent *event)
 
 void RegistrationRecordsWidget::showRecordDetail(const QString &ticketId)
 {
-    writeLog("showRecordDetail 被调用，ticketId=" + ticketId);
     static bool dialogOpen = false;
-    if (dialogOpen) {
-        writeLog("忽略：已有对话框打开");
-        return;
-    }
+    if (dialogOpen) return;
+
     dialogOpen = true;
 
     if (ticketId.isEmpty()) {
         QMessageBox::information(this, "提示", "无效的记录标识");
         dialogOpen = false;
-        this->activateWindow();
         return;
     }
 
@@ -485,22 +427,13 @@ void RegistrationRecordsWidget::showRecordDetail(const QString &ticketId)
             msgBox.setModal(true);
             msgBox.exec();
 
-            QTimer::singleShot(50, [this]() {
-                dialogOpen = false;
-                this->activateWindow();
-                this->setFocus();
-                if (recordTable) {
-                    recordTable->setFocus();
-                    recordTable->update();
-                }
-                writeLog("showRecordDetail 对话框已关闭（延迟重置）");
-            });
+            dialogOpen = false;
             return;
         }
     }
+
     QMessageBox::information(this, "提示", "未找到该记录");
     dialogOpen = false;
-    this->activateWindow();
 }
 
 void RegistrationRecordsWidget::refreshRecords()
@@ -512,7 +445,6 @@ void RegistrationRecordsWidget::updateTableStyle()
 {
     bool isDark = (ThemeManager::instance().currentTheme() == ThemeManager::Dark);
 
-    // 表格样式
     QString style = isDark ?
         "QTableWidget { background-color: #1e1e1e; color: #d0d8e8; gridline-color: #3a4a5a; }"
         "QTableWidget::item { background-color: transparent; padding: 6px; }"
@@ -527,8 +459,8 @@ void RegistrationRecordsWidget::updateTableStyle()
     if (isDark) {
         pal.setColor(QPalette::WindowText, Qt::white);
         pal.setColor(QPalette::Text, Qt::white);
-        pal.setColor(QPalette::Base, QColor(40,40,40));
-        pal.setColor(QPalette::Button, QColor(50,50,50));
+        pal.setColor(QPalette::Base, QColor(40, 40, 40));
+        pal.setColor(QPalette::Button, QColor(50, 50, 50));
     } else {
         pal.setColor(QPalette::WindowText, Qt::black);
         pal.setColor(QPalette::Text, Qt::black);
@@ -568,6 +500,7 @@ void RegistrationRecordsWidget::updateTableStyle()
         "QPushButton { background-color: transparent; border: 1px solid %1; border-radius: 4px; padding: 4px 14px; font-size: 14px; font-weight: 500; min-height: 36px; min-width: 60px; color: %2; }"
         "QPushButton:hover { background-color: %3; color: %4; }"
     ).arg(borderColor, textColor, hoverBg, hoverText);
+
     if (backBtn) backBtn->setStyleSheet(btnStyle);
     if (resetBtn) resetBtn->setStyleSheet(btnStyle);
     if (refreshBtn) refreshBtn->setStyleSheet(btnStyle);

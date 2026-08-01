@@ -1,3 +1,6 @@
+// monitordatawidget.cpp
+// 监护历史数据表格组件
+
 #include "monitordatawidget.h"
 #include "thememanager.h"
 #include "trendwidget.h"
@@ -13,23 +16,19 @@
 #include <QDateTime>
 #include <QMessageBox>
 #include <QDialog>
-#include <QFile>
-#include <QDir>
 #include <QCoreApplication>
 
 MonitorDataWidget::MonitorDataWidget(QWidget *parent)
     : QWidget(parent)
-    , networkManager(new QNetworkAccessManager(this))
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
 
-    // ----- 头部布局 -----
+    // 头部布局：返回 + 标题 + 趋势图 + 刷新
     QHBoxLayout *headerLayout = new QHBoxLayout();
     headerLayout->setContentsMargins(12, 8, 12, 8);
     headerLayout->setSpacing(16);
 
-    // 返回按钮
     QPushButton *backBtn = new QPushButton("返回");
     backBtn->setFixedHeight(50);
     backBtn->setStyleSheet(getButtonStyleSheet());
@@ -38,14 +37,12 @@ MonitorDataWidget::MonitorDataWidget(QWidget *parent)
 
     headerLayout->addStretch();
 
-    // 标题
     QLabel *title = new QLabel("监护数据");
     title->setFont(QFont("", 16, QFont::Bold));
     headerLayout->addWidget(title);
 
     headerLayout->addStretch();
 
-    // 趋势图按钮
     QPushButton *trendBtn = new QPushButton("📈 趋势图");
     trendBtn->setFixedHeight(50);
     trendBtn->setFont(QFont("", 16, QFont::Medium));
@@ -56,7 +53,6 @@ MonitorDataWidget::MonitorDataWidget(QWidget *parent)
     connect(trendBtn, &QPushButton::clicked, this, &MonitorDataWidget::onTrendButtonClicked);
     headerLayout->addWidget(trendBtn);
 
-    // 刷新按钮
     QPushButton *refreshBtn = new QPushButton("刷新");
     refreshBtn->setFixedHeight(50);
     refreshBtn->setStyleSheet(getButtonStyleSheet());
@@ -65,7 +61,7 @@ MonitorDataWidget::MonitorDataWidget(QWidget *parent)
 
     mainLayout->addLayout(headerLayout);
 
-    // ----- 表格（5列） -----
+    // 数据表格（5列）
     recordTable = new QTableWidget(this);
     recordTable->setColumnCount(5);
     recordTable->setHorizontalHeaderLabels({"日期", "时间段", "心率 (bpm)", "血氧 (%)", "体温 (°C)"});
@@ -79,15 +75,12 @@ MonitorDataWidget::MonitorDataWidget(QWidget *parent)
     recordTable->setMinimumHeight(400);
     mainLayout->addWidget(recordTable);
 
-    // 初始加载数据
     loadData();
 
-    // 主题切换更新
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
             this, &MonitorDataWidget::updateTableStyle);
 }
 
-// ----- 辅助函数：生成按钮样式 -----
 QString MonitorDataWidget::getButtonStyleSheet() const
 {
     bool isDark = (ThemeManager::instance().currentTheme() == ThemeManager::Dark);
@@ -104,137 +97,90 @@ QString MonitorDataWidget::getButtonStyleSheet() const
 
 void MonitorDataWidget::loadData()
 {
-    // 先禁用表格更新，防止闪烁
     recordTable->setUpdatesEnabled(false);
 
-    // ---- 数据库连接与表创建 ----
+    // 确保数据库连接和表存在
     QSqlDatabase db = QSqlDatabase::database();
     if (!db.isOpen()) {
         db = QSqlDatabase::addDatabase("QSQLITE");
-        QString dbPath = QCoreApplication::applicationDirPath() + "/patient_monitor.db";  // 或使用 QCoreApplication::applicationDirPath()
+        QString dbPath = QCoreApplication::applicationDirPath() + "/patient_monitor.db";
         db.setDatabaseName(dbPath);
         if (!db.open()) {
-            recordTable->setRowCount(1);
-            QTableWidgetItem *item = new QTableWidgetItem("无法打开数据库，请检查权限");
-            item->setTextAlignment(Qt::AlignCenter);
-            recordTable->setItem(0, 0, item);
-            recordTable->setSpan(0, 0, 1, 5);
-            recordTable->setUpdatesEnabled(true);
+            showError("无法打开数据库，请检查权限");
             return;
         }
+
         QSqlQuery query;
         query.exec("CREATE TABLE IF NOT EXISTS vital_data ("
-                "timestamp INTEGER PRIMARY KEY,"
-                "heart_rate REAL,"
-                "spo2 REAL,"
-                "temperature REAL,"
-                "hr_max REAL,"
-                "hr_min REAL,"
-                "hr_std REAL,"
-                "spo2_max REAL,"
-                "spo2_min REAL,"
-                "spo2_std REAL,"
-                "temp_max REAL,"
-                "temp_min REAL,"
-                "temp_std REAL,"
-                "count INTEGER"
-                ")");
+                   "timestamp INTEGER PRIMARY KEY,"
+                   "heart_rate REAL,"
+                   "spo2 REAL,"
+                   "temperature REAL,"
+                   "hr_max REAL, hr_min REAL, hr_std REAL,"
+                   "spo2_max REAL, spo2_min REAL, spo2_std REAL,"
+                   "temp_max REAL, temp_min REAL, temp_std REAL,"
+                   "count INTEGER"
+                   ")");
         if (query.lastError().isValid()) {
-            recordTable->setRowCount(1);
-            QTableWidgetItem *item = new QTableWidgetItem("创建数据表失败：" + query.lastError().text());
-            item->setTextAlignment(Qt::AlignCenter);
-            recordTable->setItem(0, 0, item);
-            recordTable->setSpan(0, 0, 1, 5);
-            recordTable->setUpdatesEnabled(true);
+            showError("创建数据表失败：" + query.lastError().text());
             return;
         }
     }
 
-    // ---- 禁止表格刷新闪烁 ----
     recordTable->clearContents();
     recordTable->setRowCount(0);
     recordTable->setColumnCount(5);
     recordTable->setHorizontalHeaderLabels({"日期", "时间段", "心率 (bpm)", "血氧 (%)", "体温 (°C)"});
 
-    // ---- 查询数据 ----
+    // 查询最近 100 条记录
     QSqlQuery query;
     query.prepare("SELECT timestamp, heart_rate, spo2, temperature FROM vital_data ORDER BY timestamp DESC LIMIT 100");
     if (!query.exec()) {
-        recordTable->setRowCount(1);
-        QTableWidgetItem *item = new QTableWidgetItem("查询失败：" + query.lastError().text());
-        item->setTextAlignment(Qt::AlignCenter);
-        recordTable->setItem(0, 0, item);
-        recordTable->setSpan(0, 0, 1, 5);
-        recordTable->setUpdatesEnabled(true);
+        showError("查询失败：" + query.lastError().text());
         return;
     }
 
-    // ---- 读取数据 ----
     QList<QPair<qint64, QPair<double, QPair<double, double>>>> dataList;
     while (query.next()) {
         qint64 ts = query.value(0).toLongLong();
         if (ts < 10000000000) ts *= 1000;
-        double hr = query.value(1).toDouble();
-        double spo2 = query.value(2).toDouble();
-        double temp = query.value(3).toDouble();
-        dataList.append(qMakePair(ts, qMakePair(hr, qMakePair(spo2, temp))));
+        dataList.append(qMakePair(ts, qMakePair(
+            query.value(1).toDouble(),
+            qMakePair(query.value(2).toDouble(), query.value(3).toDouble())
+        )));
     }
 
     if (dataList.isEmpty()) {
-        recordTable->setRowCount(1);
-        QTableWidgetItem *item = new QTableWidgetItem("暂无监护数据，请先进行测量");
-        item->setTextAlignment(Qt::AlignCenter);
-        recordTable->setItem(0, 0, item);
-        recordTable->setSpan(0, 0, 1, 5);
-        recordTable->setUpdatesEnabled(true);
+        showMessage("暂无监护数据，请先进行测量");
         return;
     }
 
-    // ---- 填充表格 ----
+    // 填充表格
     recordTable->setRowCount(dataList.size());
-
     for (int row = 0; row < dataList.size(); ++row) {
-        auto &item = dataList[row];
+        const auto &item = dataList[row];
         QDateTime dt = QDateTime::fromMSecsSinceEpoch(item.first);
         QString dateStr = dt.toString("yyyy-MM-dd");
         QString timeStr = dt.toString("hh:mm");
-        QString timeRange = timeStr + " - " + timeStr;
         double hr = item.second.first;
         double spo2 = item.second.second.first;
         double temp = item.second.second.second;
 
-        QTableWidgetItem *dateItem = new QTableWidgetItem(dateStr);
-        dateItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 0, dateItem);
-
-        QTableWidgetItem *timeRangeItem = new QTableWidgetItem(timeRange);
-        timeRangeItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 1, timeRangeItem);
-
-        QTableWidgetItem *hrItem = new QTableWidgetItem(QString::number(hr, 'f', 0));
-        hrItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 2, hrItem);
-
-        QTableWidgetItem *spo2Item = new QTableWidgetItem(QString::number(spo2, 'f', 0));
-        spo2Item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 3, spo2Item);
-
-        QTableWidgetItem *tempItem = new QTableWidgetItem(QString::number(temp, 'f', 1));
-        tempItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        recordTable->setItem(row, 4, tempItem);
+        recordTable->setItem(row, 0, makeTableItem(dateStr));
+        recordTable->setItem(row, 1, makeTableItem(timeStr + " - " + timeStr));
+        recordTable->setItem(row, 2, makeTableItem(QString::number(hr, 'f', 0)));
+        recordTable->setItem(row, 3, makeTableItem(QString::number(spo2, 'f', 0)));
+        recordTable->setItem(row, 4, makeTableItem(QString::number(temp, 'f', 1)));
     }
 
-    // ---- 设置行高（放大） ----
-    for (int row = 0; row < recordTable->rowCount(); ++row)
+    for (int row = 0; row < recordTable->rowCount(); ++row) {
         recordTable->setRowHeight(row, 55);
+    }
 
-    // ---- 列宽设置 ----
-    // 日期和时间段固定宽度（合计约占一半宽度）
-    recordTable->setColumnWidth(0, 200);   // 日期
-    recordTable->setColumnWidth(1, 240);   // 时间段
+    recordTable->setColumnWidth(0, 200);
+    recordTable->setColumnWidth(1, 240);
     recordTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     recordTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
-    // 心率、血氧、体温三列拉伸，自动填充剩余空间
     recordTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     recordTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     recordTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
@@ -243,11 +189,37 @@ void MonitorDataWidget::loadData()
     updateTableStyle();
 }
 
+void MonitorDataWidget::showError(const QString &msg)
+{
+    recordTable->setRowCount(1);
+    QTableWidgetItem *item = new QTableWidgetItem(msg);
+    item->setTextAlignment(Qt::AlignCenter);
+    recordTable->setItem(0, 0, item);
+    recordTable->setSpan(0, 0, 1, 5);
+    recordTable->setUpdatesEnabled(true);
+}
+
+void MonitorDataWidget::showMessage(const QString &msg)
+{
+    recordTable->setRowCount(1);
+    QTableWidgetItem *item = new QTableWidgetItem(msg);
+    item->setTextAlignment(Qt::AlignCenter);
+    recordTable->setItem(0, 0, item);
+    recordTable->setSpan(0, 0, 1, 5);
+    recordTable->setUpdatesEnabled(true);
+}
+
+QTableWidgetItem* MonitorDataWidget::makeTableItem(const QString &text)
+{
+    QTableWidgetItem *item = new QTableWidgetItem(text);
+    item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    return item;
+}
+
 void MonitorDataWidget::updateTableStyle()
 {
     bool isDark = (ThemeManager::instance().currentTheme() == ThemeManager::Dark);
 
-    // ---- 表格样式----
     QString style = isDark ?
         "QTableWidget { background-color: #1e1e1e; color: #d0d8e8; gridline-color: #3a4a5a; }"
         "QTableWidget::item { background-color: transparent; padding: 8px; }"
@@ -257,16 +229,13 @@ void MonitorDataWidget::updateTableStyle()
         "QHeaderView::section { background-color: #e8edf2; color: #2c3e50; padding: 10px; border: none; border-bottom: 2px solid #d0d8e0; font-size: 18px; font-weight: bold; }";
     recordTable->setStyleSheet(style);
 
-    // ---- 更新所有透明边框按钮样式 ----
-    QList<QPushButton*> btns = this->findChildren<QPushButton*>();
-    for (QPushButton *btn : btns) {
+    for (QPushButton *btn : findChildren<QPushButton*>()) {
         if (btn->text() != "趋势图") {
             btn->setStyleSheet(getButtonStyleSheet());
         }
     }
 }
 
-// ----- 刷新与趋势图功能（保持不变） -----
 void MonitorDataWidget::refreshData()
 {
     loadData();
@@ -282,6 +251,7 @@ void MonitorDataWidget::onTrendButtonClicked()
 
     QDialog dialog(this);
     dialog.setWindowTitle("选择趋势图参数");
+
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     QLabel *label = new QLabel("选择要查看的趋势图：");
     label->setAlignment(Qt::AlignCenter);
@@ -289,12 +259,12 @@ void MonitorDataWidget::onTrendButtonClicked()
     layout->addWidget(label);
 
     QHBoxLayout *btnLayout = new QHBoxLayout();
+    QString btnStyle = "QPushButton { background-color: #1a73e8; color: white; border: none; border-radius: 6px; padding: 10px 30px; font-size: 16px; font-weight: bold; min-height: 44px; }"
+                       "QPushButton:hover { background-color: #1557b0; }";
+
     QPushButton *hrBtn = new QPushButton("心率");
     QPushButton *spo2Btn = new QPushButton("血氧");
     QPushButton *tempBtn = new QPushButton("体温");
-
-    QString btnStyle = "QPushButton { background-color: #1a73e8; color: white; border: none; border-radius: 6px; padding: 10px 30px; font-size: 16px; font-weight: bold; min-height: 44px; }"
-                       "QPushButton:hover { background-color: #1557b0; }";
     hrBtn->setStyleSheet(btnStyle);
     spo2Btn->setStyleSheet(btnStyle);
     tempBtn->setStyleSheet(btnStyle);
@@ -317,7 +287,6 @@ void MonitorDataWidget::onTrendButtonClicked()
     btnLayout->addWidget(tempBtn);
     layout->addLayout(btnLayout);
 
-    connect(&dialog, &QDialog::rejected, []() { /* 无操作 */ });
     dialog.exec();
 }
 

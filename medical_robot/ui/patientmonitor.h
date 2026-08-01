@@ -4,45 +4,51 @@
 #include <QWidget>
 #include <QLCDNumber>
 #include <QLabel>
-#include <QPushButton>
 #include <QTimer>
 #include <QPointer>
-#include "wavewidget.h"
-#include "core/datamanager.h"
+#include <QPushButton> 
+#include "wavewidget.h" 
 
-class TrendWidget; 
+class TrendWidget;
+struct VitalSigns;
+
+struct AlarmThresholds {
+    int hrMin = 60;
+    int hrMax = 100;
+    int spo2Min = 95;
+    int spo2Max = 100;
+    double tempMin = 36.0;
+    double tempMax = 37.5;
+};
 
 class PatientMonitor : public QWidget
 {
-    Q_OBJECT   // 必须存在且正确
-
+    Q_OBJECT
 public:
     explicit PatientMonitor(QWidget *parent = nullptr);
     ~PatientMonitor();
-
-    void updateTheme();
 
 signals:
     void requestMonitorDataPage();
 
 private slots:
     void onDataReceived(const VitalSigns &data);
-    void showAlarmSettings();
-    void showParameterTrend(const QString &paramName);
     void onStartMeasurementClicked();
     void onCollectTimerTimeout();
     void onHistoryClicked();
+    void updateTheme();
 
 private:
     void setupUI();
+    QWidget* createValueCard(const QString &title, QLCDNumber *&lcd, QLabel *&timeLabel);
     void initDatabase();
     void flushBuffer();
-    QWidget* createValueCard(const QString &title, QLCDNumber *&lcd, QLabel *&timeLabel);
     void finishMeasurement();
     void updateLastMeasurement();
+    void showAlarmSettings();
+    void showParameterTrend(const QString &paramName);
 
-    // UI 组件
-    WaveWidget *waveWidget;
+    WaveWidget *waveWidget; 
     QLCDNumber *hrLCD;
     QLCDNumber *spo2LCD;
     QLCDNumber *tempLCD;
@@ -51,32 +57,19 @@ private:
     QLabel *m_tempTimeLabel;
     QLabel *alarmLight;
     QPushButton *alarmSettingsBtn;
-    QPushButton *startBtn;
-    QPointer<TrendWidget> m_trendWindow; 
+    QPushButton *startBtn; 
 
-    // 数据采集
     QTimer *m_collectTimer;
     bool m_isCollecting;
     int m_collectInterval;
-    QList<VitalSigns> m_currentSessionData;
-
-    // 报警
-    struct AlarmThresholds {
-        double hrMin = 40;
-        double hrMax = 120;
-        double spo2Min = 90;
-        double spo2Max = 100;
-        double tempMin = 35.0;
-        double tempMax = 38.5;
-    } m_thresholds;
     QTimer *m_blinkTimer;
-
-    // 数据存储
     QTimer *m_storeTimer;
-    QList<VitalSigns> m_dataBuffer;
-    int m_maxBufferSize;
 
-    bool m_isDark;
+    QList<VitalSigns> m_currentSessionData;
+    QList<VitalSigns> m_dataBuffer;
+    AlarmThresholds m_thresholds;
+
+    QPointer<TrendWidget> m_trendWindow;
 };
 
 #endif // PATIENTMONITOR_H

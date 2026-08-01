@@ -1,5 +1,4 @@
 #include "config.h"
-#include <cstdio>
 
 Config& Config::instance()
 {
@@ -8,8 +7,7 @@ Config& Config::instance()
 }
 
 Config::Config()
+    : m_backendUrl("http://127.0.0.1:5000")
+    , m_timeout(30)
 {
-    // 默认生产模式（联网）
-    m_mode = MODE_PRODUCTION;
-    m_backendUrl = "http://127.0.0.1:5000";
 }

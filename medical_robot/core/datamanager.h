@@ -3,8 +3,6 @@
 
 #include <QObject>
 #include <QDateTime>
-#include <QTimer>
-#include <functional>
 
 struct VitalSigns {
     qint64 timestamp;
@@ -19,8 +17,7 @@ class DataManager : public QObject
 public:
     static DataManager& instance();
 
-    // 不再需要 setDataSource 和 start/stop
-    void recordOnce();   // 手动触发一次数据记录
+    void recordOnce(); 
 
 signals:
     void newDataAvailable(const VitalSigns &data);
@@ -29,10 +26,7 @@ private:
     DataManager(QObject *parent = nullptr);
     ~DataManager();
 
-    VitalSigns generateSimulatedData();   // 生成一次有效数据
-
-private:
-    // 移除 m_timer 和 m_dataSource
+    VitalSigns generateSimulatedData();
 };
 
 #endif // DATAMANAGER_H

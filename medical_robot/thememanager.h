@@ -3,11 +3,11 @@
 
 #include <QObject>
 #include <QString>
-#include <QPalette>
 
 class ThemeManager : public QObject
 {
     Q_OBJECT
+
 public:
     enum Theme { Light, Dark };
 
@@ -21,9 +21,16 @@ signals:
 
 private:
     ThemeManager() = default;
-    Theme m_currentTheme = Light;
-    QString loadStyleSheet(const QString& path);
+    ~ThemeManager() = default;
+
+    // 禁止拷贝（单例）
+    ThemeManager(const ThemeManager&) = delete;
+    ThemeManager& operator=(const ThemeManager&) = delete;
+
     void applyPalette(Theme theme);
+    QString loadStyleSheet(const QString& path);
+
+    Theme m_currentTheme = Light;
 };
 
 #endif // THEMEMANAGER_H

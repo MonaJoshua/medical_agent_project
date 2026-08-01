@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QStackedWidget>
+#include <QPushButton>
 
 class RegistrationRecordsWidget;
 class MonitorDataWidget;
@@ -20,6 +21,8 @@ private slots:
 
 private:
     void createGridPage();
+    QPushButton* createCard(const QString &iconText, const QString &labelText,
+                            const QString &styleSheet);
 
     QStackedWidget *stackedWidget;
     QWidget *gridPage;

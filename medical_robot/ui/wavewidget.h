@@ -16,7 +16,7 @@ protected:
 
 private:
     QVector<double> dataPoints;
-    int maxPoints = 200;
+    const int maxPoints = 100;
 };
 
 #endif // WAVEWIDGET_H

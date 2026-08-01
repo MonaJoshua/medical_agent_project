@@ -1,13 +1,15 @@
+// patientmonitor.cpp
+// 病人监护仪：实时心率/血氧/体温显示 + 波形 + 报警
+
 #include "patientmonitor.h"
 #include "thememanager.h"
 #include "core/datamanager.h"
 #include "trendwidget.h"
+#include "wavewidget.h" 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
-#include <QPainter>
 #include <QDebug>
-#include <QRandomGenerator>
 #include <QDialog>
 #include <QFormLayout>
 #include <QSpinBox>
@@ -20,6 +22,7 @@
 #include <QTimer>
 #include <QMessageBox>
 #include <QCoreApplication>
+#include <cmath>
 
 PatientMonitor::PatientMonitor(QWidget *parent)
     : QWidget(parent)
@@ -36,30 +39,23 @@ PatientMonitor::PatientMonitor(QWidget *parent)
     , m_collectTimer(nullptr)
     , m_isCollecting(false)
     , m_collectInterval(2000)
-    , m_isDark(false)
     , m_blinkTimer(nullptr)
     , m_storeTimer(new QTimer(this))
-    , m_maxBufferSize(20)
 {
     setupUI();
     updateTheme();
 
-    // 连接主题切换
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
             this, &PatientMonitor::updateTheme);
 
-    // 连接数据信号
     connect(&DataManager::instance(), &DataManager::newDataAvailable,
             this, &PatientMonitor::onDataReceived);
 
-    // 初始化数据库
     initDatabase();
 
-    // 定时存储
     connect(m_storeTimer, &QTimer::timeout, this, &PatientMonitor::flushBuffer);
     m_storeTimer->start(10000);
 
-    // 加载最近一次测量值
     updateLastMeasurement();
 }
 
@@ -76,12 +72,6 @@ PatientMonitor::~PatientMonitor()
         delete m_blinkTimer;
         m_blinkTimer = nullptr;
     }
-
-    if (m_storeTimer) {
-        m_storeTimer->stop();
-        delete m_storeTimer;
-        m_storeTimer = nullptr;
-    }
 }
 
 void PatientMonitor::setupUI()
@@ -90,13 +80,13 @@ void PatientMonitor::setupUI()
     mainLayout->setSpacing(16);
     mainLayout->setContentsMargins(24, 20, 24, 20);
 
-    // ---- 波形 ----
+    // 波形
     waveWidget = new WaveWidget(this);
     waveWidget->setMinimumHeight(150);
     waveWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     mainLayout->addWidget(waveWidget);
 
-    // ---- 数值卡片（3个指标） ----
+    // 数值卡片
     QGridLayout *cardLayout = new QGridLayout();
     cardLayout->setSpacing(20);
     cardLayout->setContentsMargins(0, 0, 0, 0);
@@ -109,7 +99,7 @@ void PatientMonitor::setupUI()
     cardLayout->addWidget(tempCard, 0, 2);
     mainLayout->addLayout(cardLayout);
 
-    // ---- 底部操作栏 ----
+    // 底部操作栏
     QHBoxLayout *bottomLayout = new QHBoxLayout();
     bottomLayout->setSpacing(20);
 
@@ -128,12 +118,11 @@ void PatientMonitor::setupUI()
     connect(startBtn, &QPushButton::clicked, this, &PatientMonitor::onStartMeasurementClicked);
     bottomLayout->addWidget(startBtn, 0, Qt::AlignRight);
 
-    // 采集定时器
     m_collectTimer = new QTimer(this);
     m_collectTimer->setInterval(m_collectInterval);
     connect(m_collectTimer, &QTimer::timeout, this, &PatientMonitor::onCollectTimerTimeout);
 
-    // 历史数据
+    // 历史数据按钮
     QPushButton *historyBtn = new QPushButton("📝 历史数据");
     historyBtn->setObjectName("historyBtn");
     historyBtn->setFont(QFont("", 18));
@@ -142,7 +131,7 @@ void PatientMonitor::setupUI()
     connect(historyBtn, &QPushButton::clicked, this, &PatientMonitor::onHistoryClicked);
     bottomLayout->addWidget(historyBtn);
 
-    // 阈值设置
+    // 阈值设置按钮
     alarmSettingsBtn = new QPushButton("⚙️ 阈值设置");
     alarmSettingsBtn->setFont(QFont("", 18));
     alarmSettingsBtn->setMinimumHeight(48);
@@ -162,7 +151,7 @@ QWidget* PatientMonitor::createValueCard(const QString &title, QLCDNumber *&lcd,
     layout->setSpacing(6);
     layout->setContentsMargins(12, 12, 12, 12);
 
-    // 标题行（标题 + 时间）
+    // 标题行
     QHBoxLayout *titleLayout = new QHBoxLayout();
     QLabel *titleLabel = new QLabel(title);
     titleLabel->setFont(QFont("", 16, QFont::Bold));
@@ -173,10 +162,9 @@ QWidget* PatientMonitor::createValueCard(const QString &title, QLCDNumber *&lcd,
     timeLabel->setFont(QFont("", 13));
     timeLabel->setStyleSheet("color: #8899aa;");
     titleLayout->addWidget(timeLabel);
-
     layout->addLayout(titleLayout);
 
-    // LCD数字
+    // LCD 数字
     lcd = new QLCDNumber();
     lcd->setDigitCount(3);
     lcd->setSegmentStyle(QLCDNumber::Filled);
@@ -210,9 +198,8 @@ QWidget* PatientMonitor::createValueCard(const QString &title, QLCDNumber *&lcd,
 void PatientMonitor::updateTheme()
 {
     bool isDark = (ThemeManager::instance().currentTheme() == ThemeManager::Dark);
-    m_isDark = isDark;
 
-    // ---- 卡片背景 ----
+    // 卡片背景
     QList<QWidget*> cards = findChildren<QWidget*>();
     for (QWidget *w : cards) {
         if (w->inherits("QWidget") && !w->inherits("QLCDNumber") && !w->inherits("QLabel") && !w->inherits("QPushButton")) {
@@ -225,7 +212,7 @@ void PatientMonitor::updateTheme()
         }
     }
 
-    // ---- 阈值设置按钮 ----
+    // 阈值设置按钮
     if (alarmSettingsBtn) {
         QString style = isDark ?
             "QPushButton { background-color: #2a2a3a; color: #d0d8e8; border: 1px solid #4a5a7a; border-radius: 6px; padding: 8px 18px; font-size: 18px; font-weight: bold; min-height: 48px; }"
@@ -235,7 +222,7 @@ void PatientMonitor::updateTheme()
         alarmSettingsBtn->setStyleSheet(style);
     }
 
-    // ---- 历史数据按钮 ----
+    // 历史数据按钮
     QPushButton *historyBtn = findChild<QPushButton*>("historyBtn");
     if (historyBtn) {
         QString style = isDark ?
@@ -246,7 +233,7 @@ void PatientMonitor::updateTheme()
         historyBtn->setStyleSheet(style);
     }
 
-    // ---- 开始/停止 ----
+    // 开始/停止按钮
     if (startBtn) {
         QString style;
         if (m_isCollecting) {
@@ -265,14 +252,13 @@ void PatientMonitor::updateTheme()
         startBtn->setStyleSheet(style);
     }
 
-    // ---- 波形 ----
     if (waveWidget) waveWidget->update();
 }
 
 void PatientMonitor::onDataReceived(const VitalSigns &data)
 {
-    hrLCD->display((int)data.heartRate);
-    spo2LCD->display((int)data.spo2);
+    hrLCD->display(static_cast<int>(data.heartRate));
+    spo2LCD->display(static_cast<int>(data.spo2));
     tempLCD->display(data.temperature);
     waveWidget->addDataPoint(data.heartRate);
 
@@ -317,24 +303,19 @@ void PatientMonitor::initDatabase()
     QString dbPath = QCoreApplication::applicationDirPath() + "/patient_monitor.db";
     db.setDatabaseName(dbPath);
     if (!db.open()) {
-        qWarning() << "无法打开数据库：" << db.lastError().text();
+        qWarning() << "[PatientMonitor] 无法打开数据库：" << db.lastError().text();
         return;
     }
+
     QSqlQuery query;
     query.exec("CREATE TABLE IF NOT EXISTS vital_data ("
                "timestamp INTEGER PRIMARY KEY,"
                "heart_rate REAL,"
                "spo2 REAL,"
                "temperature REAL,"
-               "hr_max REAL,"
-               "hr_min REAL,"
-               "hr_std REAL,"
-               "spo2_max REAL,"
-               "spo2_min REAL,"
-               "spo2_std REAL,"
-               "temp_max REAL,"
-               "temp_min REAL,"
-               "temp_std REAL,"
+               "hr_max REAL, hr_min REAL, hr_std REAL,"
+               "spo2_max REAL, spo2_min REAL, spo2_std REAL,"
+               "temp_max REAL, temp_min REAL, temp_std REAL,"
                "count INTEGER"
                ")");
 }
@@ -345,7 +326,7 @@ void PatientMonitor::flushBuffer()
 
     QSqlDatabase db = QSqlDatabase::database();
     if (!db.isOpen()) {
-        qWarning() << "数据库未打开，无法存储";
+        qWarning() << "[PatientMonitor] 数据库未打开，无法存储";
         m_dataBuffer.clear();
         return;
     }
@@ -363,6 +344,7 @@ void PatientMonitor::flushBuffer()
     db.commit();
     m_dataBuffer.clear();
 
+    // 清理 7 天前的数据
     qint64 cutoff = QDateTime::currentMSecsSinceEpoch() - 7 * 24 * 3600 * 1000;
     query.prepare("DELETE FROM vital_data WHERE timestamp < ?");
     query.addBindValue(cutoff);
@@ -373,6 +355,7 @@ void PatientMonitor::showAlarmSettings()
 {
     QDialog dialog(this);
     dialog.setWindowTitle("报警阈值设置");
+
     QFormLayout *form = new QFormLayout(&dialog);
     QSpinBox *hrMin = new QSpinBox; hrMin->setRange(30, 150); hrMin->setValue(m_thresholds.hrMin);
     QSpinBox *hrMax = new QSpinBox; hrMax->setRange(30, 200); hrMax->setValue(m_thresholds.hrMax);
@@ -404,14 +387,12 @@ void PatientMonitor::showAlarmSettings()
 
 void PatientMonitor::showParameterTrend(const QString &paramName)
 {
-    // 如果已有趋势图窗口且仍可见，则激活它
     if (!m_trendWindow.isNull() && m_trendWindow->isVisible()) {
         m_trendWindow->raise();
         m_trendWindow->activateWindow();
         return;
     }
 
-    // 创建新窗口
     TrendWidget *trend = new TrendWidget(paramName);
     trend->setWindowTitle(QString("趋势图 - %1").arg(paramName));
     trend->resize(800, 500);
@@ -419,7 +400,6 @@ void PatientMonitor::showParameterTrend(const QString &paramName)
     trend->setWindowFlags(Qt::Window);
     trend->show();
 
-    // 保存指针，并在窗口关闭时自动清空
     m_trendWindow = trend;
     connect(trend, &QObject::destroyed, [this]() {
         m_trendWindow.clear();
@@ -473,16 +453,16 @@ void PatientMonitor::finishMeasurement()
     double avgSpO2 = sumSpO2 / count;
     double avgTemp = sumTemp / count;
 
-    // 计算标准差（可选）
+    // 计算标准差
     double hrStd = 0, spo2Std = 0, tempStd = 0;
-    for (int i=0; i<count; ++i) {
-        hrStd += pow(hrList[i] - avgHR, 2);
-        spo2Std += pow(spo2List[i] - avgSpO2, 2);
-        tempStd += pow(tempList[i] - avgTemp, 2);
+    for (int i = 0; i < count; ++i) {
+        hrStd += std::pow(hrList[i] - avgHR, 2);
+        spo2Std += std::pow(spo2List[i] - avgSpO2, 2);
+        tempStd += std::pow(tempList[i] - avgTemp, 2);
     }
-    hrStd = sqrt(hrStd / count);
-    spo2Std = sqrt(spo2Std / count);
-    tempStd = sqrt(tempStd / count);
+    hrStd = std::sqrt(hrStd / count);
+    spo2Std = std::sqrt(spo2Std / count);
+    tempStd = std::sqrt(tempStd / count);
 
     // 保存到数据库
     QSqlDatabase db = QSqlDatabase::database();
@@ -506,19 +486,18 @@ void PatientMonitor::finishMeasurement()
         query.addBindValue(minTemp);
         query.addBindValue(tempStd);
         query.addBindValue(count);
+
         if (!query.exec()) {
-            qWarning() << "插入测量数据失败：" << query.lastError().text();
+            qWarning() << "[PatientMonitor] 插入测量数据失败：" << query.lastError().text();
         }
     }
 
-    // 更新界面显示最新测量值
     updateLastMeasurement();
     QMessageBox::information(this, "测量完成", QString("本次测量有效点数：%1\n平均值已保存").arg(count));
 }
 
 void PatientMonitor::onHistoryClicked()
 {
-    // 直接跳转到更多工具中的监护数据页面
     emit requestMonitorDataPage();
 }
 
@@ -526,7 +505,7 @@ void PatientMonitor::updateLastMeasurement()
 {
     QSqlDatabase db = QSqlDatabase::database();
     if (!db.isOpen()) {
-        qWarning() << "数据库未打开，无法读取最新测量值";
+        qWarning() << "[PatientMonitor] 数据库未打开，无法读取最新测量值";
         return;
     }
 
@@ -551,8 +530,8 @@ void PatientMonitor::updateLastMeasurement()
     double spo2 = query.value(2).toDouble();
     double temp = query.value(3).toDouble();
 
-    hrLCD->display((int)hr);
-    spo2LCD->display((int)spo2);
+    hrLCD->display(static_cast<int>(hr));
+    spo2LCD->display(static_cast<int>(spo2));
     tempLCD->display(temp);
 
     if (m_hrTimeLabel) m_hrTimeLabel->setText(timeStr);

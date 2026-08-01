@@ -2,12 +2,11 @@
 #define SMARTTRIAGE_H
 
 #include <QWidget>
+#include <QPushButton> 
+#include <QButtonGroup>
+#include <QGridLayout>
 #include <QNetworkAccessManager>
 #include <QTextBrowser>
-#include <QPushButton>
-#include <QGridLayout>
-#include <QButtonGroup>
-#include <QComboBox>
 
 class SmartTriage : public QWidget
 {
@@ -17,26 +16,27 @@ public:
     ~SmartTriage();
 
 private slots:
-    void onDepartmentRefreshClicked();
-    void onRegisterClicked();
     void onDeptButtonClicked(QAbstractButton *button);
+    void onRegisterClicked();
     void onReplyFinished(QNetworkReply *reply);
+    void onDepartmentRefreshClicked();
 
 private:
     void loadDepartments();
     void populateDepartmentButtons();
-    bool isRefreshing;
+    QString buildSuccessHtml(const QString &dept, const QString &ticketId, int queueNum);
+    QString buildErrorHtml(const QString &error);
 
     QNetworkAccessManager *networkManager;
     QTextBrowser *resultBrowser;
-    QPushButton *registerBtn;
-    QStringList m_departments;
-    QString m_selectedDept;
-
     QWidget *deptButtonContainer;
     QGridLayout *deptGridLayout;
     QButtonGroup *deptButtonGroup;
-    QPushButton *refreshDeptBtn; 
+    QPushButton *registerBtn;
+
+    QStringList m_departments;
+    QString m_selectedDept;
+    bool isRefreshing;
 };
 
 #endif // SMARTTRIAGE_H

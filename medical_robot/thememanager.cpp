@@ -3,7 +3,7 @@
 #include <QFile>
 #include <QPalette>
 #include <QColor>
-#include <QStyle> 
+#include <QStyle>
 
 ThemeManager& ThemeManager::instance()
 {
@@ -56,5 +56,5 @@ void ThemeManager::applyTheme(Theme theme)
         qApp->setStyleSheet(QString());
     }
     applyPalette(theme);
-    emit themeChanged(theme);
+    emit themeChanged(theme); 
 }

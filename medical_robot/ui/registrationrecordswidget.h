@@ -14,35 +14,38 @@ class RegistrationRecordsWidget : public QWidget
     Q_OBJECT
 public:
     explicit RegistrationRecordsWidget(QWidget *parent = nullptr);
-    void refreshRecords();   // 改为 public
+    void refreshRecords();
 
 signals:
     void backToGrid();
 
 private slots:
-    void applyFilter();
     void resetFilter();
     void onDateChanged(const QDate &date);
 
 private:
     void loadRecords();
+    void fetchWithCurl();
     void displayRecords(const QJsonArray &records);
+    void applyFilter();
+    void showError(const QString &msg);
     void showRecordDetail(const QString &ticketId);
     void updateTableStyle();
-    void showError(const QString &msg);
+    QTableWidgetItem* makeTableItem(const QString &text);
+
     void resizeEvent(QResizeEvent *event) override;
 
     QTableWidget *recordTable;
+    QNetworkAccessManager *networkManager;
     QDateEdit *dateEdit;
+    QPushButton *backBtn;
     QPushButton *resetBtn;
     QPushButton *refreshBtn;
-    QPushButton *backBtn;
+    QTimer *resizeTimer;
 
-    QNetworkAccessManager *networkManager;
     QJsonArray m_allRecords;
     bool m_dateFilterEnabled;
     bool isProcessing;
-    QTimer *resizeTimer;
 };
 
 #endif // REGISTRATIONRECORDSWIDGET_H

@@ -4,7 +4,6 @@
 #include <QObject>
 #include <QSqlDatabase>
 #include <QDateTime>
-#include <QVariantList>
 
 struct VitalSigns;
 
@@ -18,7 +17,6 @@ public:
     void saveData(const VitalSigns &data);
     void saveDataBatch(const QList<VitalSigns> &dataList);
 
-    // 查询数据（用于趋势图）
     QList<VitalSigns> fetchData(qint64 startTime, qint64 endTime);
     qint64 getEarliestTimestamp();
     void cleanOldData(int daysToKeep = 7);

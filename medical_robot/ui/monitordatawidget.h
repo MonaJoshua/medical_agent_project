@@ -1,13 +1,11 @@
 #ifndef MONITORDATAWIDGET_H
 #define MONITORDATAWIDGET_H
 
-#include "trendwidget.h"
 #include <QWidget>
 #include <QTableWidget>
-#include <QNetworkAccessManager>
-#include <QJsonArray>
-#include <QPushButton>
 #include <QPointer>
+
+class TrendWidget;
 
 class MonitorDataWidget : public QWidget
 {
@@ -20,17 +18,19 @@ signals:
     void backToGrid();
 
 private slots:
-    void onTrendButtonClicked();   // 新增：趋势图按钮槽
+    void onTrendButtonClicked();
 
 private:
     void loadData();
     void updateTableStyle();
     void showTrendWindow(const QString &paramName, const QString &displayName);
     QString getButtonStyleSheet() const;
-    
+
+    void showError(const QString &msg);
+    void showMessage(const QString &msg);
+    QTableWidgetItem* makeTableItem(const QString &text);
+
     QTableWidget *recordTable;
-    QNetworkAccessManager *networkManager;
-    QJsonArray m_allRecords;
     QPointer<TrendWidget> m_trendWindow;
 };
 

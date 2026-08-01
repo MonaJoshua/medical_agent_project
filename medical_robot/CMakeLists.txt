@@ -42,7 +42,6 @@ set(HEADERS
     ui/trendwidget.h
     ui/monitordatawidget.h
     core/config.h
-    core/datamodel.h
     core/datamanager.h
     core/datastorage.cpp
     core/datastorage.h

@@ -1,4 +1,10 @@
+/**
+*后端 API 客户端实现
+*封装与 Flask 后端的所有 HTTP 通信，支持超时重试。
+*所有方法均为异步，通过回调函数返回结果。
+*/
 #include "apiclient.h"
+#include "config.h"
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QTimer>
@@ -6,6 +12,9 @@
 #include <QJsonObject>
 #include <QDebug>
 
+// ============================================================
+// 单例实现
+// ============================================================
 ApiClient& ApiClient::instance()
 {
     static ApiClient instance;
@@ -16,6 +25,8 @@ ApiClient::ApiClient()
     : m_manager(new QNetworkAccessManager(this))
     , m_backendUrl("http://127.0.0.1:5000")
 {
+    // 从配置文件读取后端地址
+    m_backendUrl = Config::instance().getBackendUrl();
 }
 
 ApiClient::~ApiClient() {}
@@ -25,170 +36,157 @@ void ApiClient::setBackendUrl(const QString& url)
     m_backendUrl = url;
 }
 
-void ApiClient::triage(const QString& symptoms, std::function<void(bool, const QString&)> callback, int retryCount)
+// ============================================================
+// 私有辅助：发起带超时的 POST 请求
+// ============================================================
+void ApiClient::postWithTimeout(
+    const QString& endpoint,
+    const QJsonObject& jsonBody,
+    int timeout,
+    std::function<void(const QJsonObject&)> onSuccess,
+    std::function<void(const QString&)> onError)
 {
-    QUrl url(m_backendUrl + "/api/triage");
+    QUrl url(m_backendUrl + endpoint);
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setTransferTimeout(30000);  // 30秒超时
+    request.setTransferTimeout(timeout);
+
+    QNetworkReply* reply = m_manager->post(request, QJsonDocument(jsonBody).toJson());
+
+    // 超时处理：使用单次定时器
+    QTimer* timer = new QTimer;
+    timer->setSingleShot(true);
+    connect(timer, &QTimer::timeout, [reply, timer, onError]() {
+        if (reply && reply->isRunning()) {
+            reply->abort();
+            onError("请求超时，请稍后重试");
+        }
+        timer->deleteLater();
+    });
+    timer->start(timeout);
+
+    // 响应处理
+    connect(reply, &QNetworkReply::finished, [reply, timer, onSuccess, onError]() {
+        timer->stop();
+        timer->deleteLater();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            onError(QString("网络错误: %1").arg(reply->errorString()));
+            reply->deleteLater();
+            return;
+        }
+
+        QByteArray data = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        reply->deleteLater();
+
+        if (!doc.isObject()) {
+            onError("响应格式错误");
+            return;
+        }
+
+        onSuccess(doc.object());
+    });
+}
+
+// ============================================================
+// 公开 API 方法
+// ============================================================
+// AI 分诊：症状 → 科室 + 建议
+void ApiClient::triage(const QString& symptoms, 
+                       std::function<void(bool, const QString&, const QString&)> callback,
+                       int retryCount)
+{
+    int timeout = Config::instance().getTimeout() * 1000;  // 转毫秒
 
     QJsonObject jsonBody;
     jsonBody["symptoms"] = symptoms;
 
-    QNetworkReply* reply = m_manager->post(request, QJsonDocument(jsonBody).toJson());
-    
-    // 超时定时器
-    QTimer* timer = new QTimer;
-    timer->setSingleShot(true);
-    connect(timer, &QTimer::timeout, [reply, timer, symptoms, callback, retryCount]() {
-        if (reply && reply->isRunning()) {
-            reply->abort();
+    postWithTimeout("/api/triage", jsonBody, timeout,
+        // 成功回调
+        [callback](const QJsonObject& resp) {
+            if (resp["success"].toBool()) {
+                QString department = resp["department"].toString("全科门诊");
+                QString suggestion = resp["suggestion"].toString("请及时就医");
+                callback(true, department, suggestion);
+            } else {
+                callback(false, "", resp["message"].toString("分诊失败"));
+            }
+        },
+        // 失败回调（含重试）
+        [this, symptoms, callback, retryCount](const QString& error) {
             if (retryCount > 0) {
-                qDebug() << "⚠️ 分诊请求超时，剩余重试次数:" << retryCount;
-                ApiClient::instance().triage(symptoms, callback, retryCount - 1);
+                qDebug() << "[ApiClient] 分诊失败，剩余重试次数:" << retryCount << "，错误:" << error;
+                triage(symptoms, callback, retryCount - 1);
             } else {
-                callback(false, "网络超时，请稍后重试");
+                callback(false, "", error);
             }
         }
-        timer->deleteLater();
-    });
-    timer->start(30000);
-
-    connect(reply, &QNetworkReply::finished, [reply, timer, callback]() {
-        timer->stop();
-        timer->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            QString err = QString("网络错误: %1").arg(reply->errorString());
-            callback(false, err);
-        } else {
-            QByteArray data = reply->readAll();
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            QJsonObject obj = doc.object();
-            if (obj["success"].toBool()) {
-                callback(true, obj["result"].toString());
-            } else {
-                callback(false, obj["message"].toString());
-            }
-        }
-        reply->deleteLater();
-    });
+    );
 }
 
-void ApiClient::registerPatient(const QString& department, const QString& patientName,
-                                const QString& symptoms, std::function<void(bool, const QJsonObject&)> callback,
+// 挂号提交
+void ApiClient::registerPatient(const QString& department, 
+                                const QString& patientName,
+                                const QString& symptoms,
+                                std::function<void(bool, const QJsonObject&)> callback,
                                 int retryCount)
 {
-    QUrl url(m_backendUrl + "/api/register");
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setTransferTimeout(30000);
+    int timeout = Config::instance().getTimeout() * 1000;
 
     QJsonObject jsonBody;
     jsonBody["department"] = department;
     jsonBody["patient_name"] = patientName;
     jsonBody["symptoms"] = symptoms;
 
-    QNetworkReply* reply = m_manager->post(request, QJsonDocument(jsonBody).toJson());
-    
-    QTimer* timer = new QTimer;
-    timer->setSingleShot(true);
-    connect(timer, &QTimer::timeout, [reply, timer, department, patientName, symptoms, callback, retryCount]() {
-        if (reply && reply->isRunning()) {
-            reply->abort();
+    postWithTimeout("/api/register", jsonBody, timeout,
+        // 成功回调
+        [callback](const QJsonObject& resp) {
+            bool ok = resp["success"].toBool();
+            callback(ok, resp);
+        },
+        // 失败回调（含重试）
+        [this, department, patientName, symptoms, callback, retryCount](const QString& error) {
             if (retryCount > 0) {
-                qDebug() << "⚠️ 挂号请求超时，剩余重试次数:" << retryCount;
-                ApiClient::instance().registerPatient(department, patientName, symptoms, callback, retryCount - 1);
+                qDebug() << "[ApiClient] 挂号失败，剩余重试次数:" << retryCount << "，错误:" << error;
+                registerPatient(department, patientName, symptoms, callback, retryCount - 1);
             } else {
                 QJsonObject err;
                 err["success"] = false;
-                err["message"] = "挂号超时，请稍后重试";
+                err["message"] = error;
                 callback(false, err);
             }
         }
-        timer->deleteLater();
-    });
-    timer->start(30000);
-
-    connect(reply, &QNetworkReply::finished, [reply, timer, callback]() {
-        timer->stop();
-        timer->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            QJsonObject err;
-            err["success"] = false;
-            err["message"] = reply->errorString();
-            callback(false, err);
-        } else {
-            QByteArray data = reply->readAll();
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            QJsonObject obj = doc.object();
-            callback(obj["success"].toBool(), obj);
-        }
-        reply->deleteLater();
-    });
+    );
 }
 
+// 症状摘要：将长症状描述压缩为 30 字以内
 void ApiClient::summarizeSymptom(const QString& symptom,
                                  std::function<void(bool, const QString&)> callback)
 {
-    QUrl url(m_backendUrl + "/api/summarize");
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    int timeout = Config::instance().getTimeout() * 1000;
 
-    QJsonObject obj;
-    obj["symptom"] = symptom;
-    QNetworkReply* reply = m_manager->post(request, QJsonDocument(obj).toJson());
+    QJsonObject jsonBody;
+    jsonBody["symptom"] = symptom;
 
-    QTimer* timer = new QTimer;
-    timer->setSingleShot(true);
-    connect(timer, &QTimer::timeout, [reply, timer, callback]() {
-        if (reply && reply->isRunning()) {
-            reply->abort();
-            callback(false, "摘要请求超时");
-        }
-        timer->deleteLater();
-    });
-    timer->start(15000);  // 15秒超时
-
-    connect(reply, &QNetworkReply::finished, [reply, timer, callback]() {
-        timer->stop();
-        timer->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            callback(false, reply->errorString());
-        } else {
-            QByteArray data = reply->readAll();
-            QJsonDocument doc = QJsonDocument::fromJson(data);
-            QJsonObject obj = doc.object();
-            if (obj["success"].toBool()) {
-                callback(true, obj["summary"].toString());
+    postWithTimeout("/api/summarize", jsonBody, timeout,
+        // 成功回调
+        [callback](const QJsonObject& resp) {
+            if (resp["success"].toBool()) {
+                callback(true, resp["summary"].toString());
             } else {
-                callback(false, obj["message"].toString());
+                callback(false, resp["message"].toString("摘要生成失败"));
             }
+        },
+        // 失败回调（摘要失败时降级为本地截断）
+        [callback, symptom](const QString& error) {
+            qDebug() << "[ApiClient] 摘要请求失败:" << error << "，降级为本地截断";
+            // 降级方案：本地截断
+            QString fallback = symptom;
+            if (fallback.length() > 30) {
+                fallback = fallback.left(30) + "...";
+            }
+            callback(true, fallback);  // 仍返回 success=true，让调用方继续流程
         }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::sendSymptomRecord(const QString& patientName, const QString& symptom,
-                                  const QString& department, const QString& suggestion)
-{
-    QUrl url(m_backendUrl + "/api/symptom_records");
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    // 若需API Key，可在此设置，例如：
-    // request.setRawHeader("X-API-Key", "your_api_key_here");
-
-    QJsonObject obj;
-    obj["patient_name"] = patientName;
-    obj["symptom"] = symptom;
-    obj["department"] = department;
-    obj["suggestion"] = suggestion;
-
-    QNetworkReply* reply = m_manager->post(request, QJsonDocument(obj).toJson());
-    QObject::connect(reply, &QNetworkReply::finished, [reply]() {
-        if (reply->error() != QNetworkReply::NoError) {
-            qDebug() << "症状记录发送失败:" << reply->errorString();
-        }
-        reply->deleteLater();
-    });
+    );
 }

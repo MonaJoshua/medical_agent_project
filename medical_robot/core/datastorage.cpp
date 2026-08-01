@@ -1,5 +1,5 @@
 #include "datastorage.h"
-#include "datamanager.h"
+#include "datamanager.h" 
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDebug>
@@ -29,7 +29,6 @@ bool DataStorage::initDatabase(const QString &dbPath)
 {
     if (m_initialized) return true;
 
-    // 确保数据库目录存在
     QFileInfo info(dbPath);
     QDir dir = info.dir();
     if (!dir.exists()) {
@@ -40,11 +39,10 @@ bool DataStorage::initDatabase(const QString &dbPath)
     m_db.setDatabaseName(dbPath);
 
     if (!m_db.open()) {
-        qDebug() << "无法打开数据库:" << m_db.lastError().text();
+        qDebug() << "[DataStorage] 无法打开数据库:" << m_db.lastError().text();
         return false;
     }
 
-    // 创建表
     QString createTable = R"(
         CREATE TABLE IF NOT EXISTS vital_signs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,14 +53,15 @@ bool DataStorage::initDatabase(const QString &dbPath)
         );
         CREATE INDEX IF NOT EXISTS idx_timestamp ON vital_signs(timestamp);
     )";
+
     QSqlQuery query;
     if (!query.exec(createTable)) {
-        qDebug() << "创建表失败:" << query.lastError().text();
+        qDebug() << "[DataStorage] 创建表失败:" << query.lastError().text();
         return false;
     }
 
     m_initialized = true;
-    qDebug() << "数据库初始化成功:" << dbPath;
+    qDebug() << "[DataStorage] 数据库初始化成功:" << dbPath;
     return true;
 }
 
@@ -79,28 +78,40 @@ void DataStorage::saveData(const VitalSigns &data)
     query.bindValue(":temperature", data.temperature);
 
     if (!query.exec()) {
-        qDebug() << "插入数据失败:" << query.lastError().text();
+        qDebug() << "[DataStorage] 插入数据失败:" << query.lastError().text();
     }
 }
 
 void DataStorage::saveDataBatch(const QList<VitalSigns> &dataList)
 {
-    if (dataList.isEmpty()) return;
+    if (dataList.isEmpty() || !m_initialized) return;
 
     QSqlQuery query;
     query.prepare("INSERT INTO vital_signs (timestamp, heart_rate, spo2, temperature) "
                   "VALUES (:timestamp, :heart_rate, :spo2, :temperature)");
 
-    // 使用事务加速
     m_db.transaction();
+    bool hasError = false;
+
     for (const VitalSigns &data : dataList) {
         query.bindValue(":timestamp", data.timestamp);
         query.bindValue(":heart_rate", data.heartRate);
         query.bindValue(":spo2", data.spo2);
         query.bindValue(":temperature", data.temperature);
-        query.exec();
+
+        if (!query.exec()) {
+            qDebug() << "[DataStorage] 批量插入失败:" << query.lastError().text();
+            hasError = true;
+            break;
+        }
     }
-    m_db.commit();
+
+    if (hasError) {
+        m_db.rollback();
+        qDebug() << "[DataStorage] 批量插入已回滚";
+    } else {
+        m_db.commit();
+    }
 }
 
 QList<VitalSigns> DataStorage::fetchData(qint64 startTime, qint64 endTime)
@@ -115,7 +126,7 @@ QList<VitalSigns> DataStorage::fetchData(qint64 startTime, qint64 endTime)
     query.bindValue(":end", endTime);
 
     if (!query.exec()) {
-        qDebug() << "查询数据失败:" << query.lastError().text();
+        qDebug() << "[DataStorage] 查询数据失败:" << query.lastError().text();
         return list;
     }
 
@@ -149,12 +160,15 @@ void DataStorage::cleanOldData(int daysToKeep)
     QSqlQuery query;
     query.prepare("DELETE FROM vital_signs WHERE timestamp < :cutoff");
     query.bindValue(":cutoff", cutoff);
+
     if (!query.exec()) {
-        qDebug() << "清理旧数据失败:" << query.lastError().text();
-    } else {
-        qDebug() << "清理了" << query.numRowsAffected() << "条旧数据";
+        qDebug() << "[DataStorage] 清理旧数据失败:" << query.lastError().text();
+        return;
     }
 
-    // VACUUM 释放空间（可选）
+    int deleted = query.numRowsAffected();
+    qDebug() << "[DataStorage] 清理了" << deleted << "条旧数据";
+
+    // VACUUM 释放空间（静默执行，忽略错误）
     query.exec("VACUUM");
 }

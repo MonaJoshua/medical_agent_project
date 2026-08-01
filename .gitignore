@@ -11,6 +11,7 @@ build/
 *.core
 *.pid
 *.lock
+*.app
 
 # ============================================================
 # C++ / Qt 构建临时文件
@@ -37,9 +38,14 @@ squashfs-root/
 *.AppImage
 appimagetool-x86_64.AppImage
 
-# 可执行文件
-MedicalRobot
-MedicalRobot_autogen/
+# Qt 翻译文件
+*.qm
+
+# Qt Creator 缓存
+qtc_clangd/
+*.creator.user*
+*.creator.files
+*.creator.includes
 
 # ============================================================
 # Python / Flask 后端
@@ -48,6 +54,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pyi
 venv/
 backend/venv/
 *.env
@@ -57,6 +64,16 @@ backend/instance/*.db-journal
 *.db
 *.sqlite3
 *.sqlite
+
+# pip 缓存
+pip-log.txt
+pip-delete-this-directory.txt
+.pip/
+
+# 打包文件
+*.egg-info/
+*.dist-info/
+*.whl
 
 # ============================================================
 # 日志与临时文件
@@ -86,6 +103,7 @@ empty_test.txt
 # IDE / 编辑器配置
 # ============================================================
 .vscode/
+.vscode-server/
 .idea/
 *.user
 *.creator
@@ -96,6 +114,9 @@ empty_test.txt
 *.kdev4
 *.swp
 *.swo
+
+# CLion / JetBrains
+cmake-build-*/
 
 # ============================================================
 # 系统 / 用户配置文件（不应上传）
@@ -122,6 +143,11 @@ empty_test.txt
 .aws/
 .azure/
 .gcloud/
+.tmux.conf*
+.screenrc
+.viminfo
+.zsh_history
+.zshrc
 
 # ============================================================
 # 其他
@@ -136,8 +162,13 @@ Thumbs.db
 *.lock
 *.core
 
+# macOS
+._*
+.Spotlight-V100
+.Trashes
+
 # ============================================================
-# 本地临时录音文件（如程序在 /tmp 生成，但以防万一）
+# 本地临时录音文件
 # ============================================================
 /tmp/voice_*.wav
 /tmp/voice_*.pcm
@@ -151,6 +182,12 @@ Thumbs.db
 *.gcov
 coverage/
 htmlcov/
+.pytest_cache/
+.coverage
+.coverage.*
+*.cover
+.tox/
+.nosetests/
 
 # ============================================================
 # 打包文件
@@ -159,3 +196,27 @@ htmlcov/
 *.zip
 *.rar
 *.7z
+*.tar.bz2
+*.tgz
+*.bz2
+
+# ============================================================
+# 数据库备份
+# ============================================================
+*.bak.sql
+*.dump
+*.sqlite-backup
+
+# ============================================================
+# 前端（如后续有 Vue/React）
+# ============================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+pnpm-lock.yaml
+dist/
+.parcel-cache/
+.next/
+out/
