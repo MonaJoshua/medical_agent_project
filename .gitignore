@@ -219,4 +219,4 @@ pnpm-lock.yaml
 dist/
 .parcel-cache/
 .next/
-out/
+out/medical_robot/config.yaml
