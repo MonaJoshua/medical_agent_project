@@ -50,27 +50,27 @@
 ```mermaid
 flowchart TD
     subgraph 用户层["🖥️ 用户层 (Qt/C++ 桌面终端)"]
-        A[🎤 语音助手]
-        B[📋 一键挂号]
-        C[🫀 监护仪]
-        D[🔧 更多工具]
+        A["🎤 语音助手"]
+        B["📋 一键挂号"]
+        C["🫀 监护仪"]
+        D["🔧 更多工具"]
     end
 
     subgraph API层["🌐 API 层"]
-        API[⬇ HTTP / JSON RESTful API]
+        API["⬇ HTTP / JSON RESTful API"]
     end
 
     subgraph 服务层["⚙️ 服务层 (Python/Flask)"]
-        E[/api/chat<br>健康咨询]
-        F[/api/triage<br>AI分诊]
-        G[/api/register<br>挂号处理]
-        H[/admin/api/*<br>管理后台]
+        E["/api/chat\n健康咨询"]
+        F["/api/triage\nAI分诊"]
+        G["/api/register\n挂号处理"]
+        H["/admin/api/*\n管理后台"]
     end
 
     subgraph AI与数据层["🧠 AI 与数据层"]
-        I[通义千问<br>Qwen-Turbo]
-        J[百度语音<br>STT / TTS]
-        K[SQLite 数据库<br>科室/医生/挂号记录]
+        I["通义千问\n(Qwen-Turbo)"]
+        J["百度语音\n(STT / TTS)"]
+        K["SQLite 数据库\n科室/医生/挂号记录"]
     end
 
     A --> API
@@ -85,8 +85,7 @@ flowchart TD
     F --> I
     G --> K
     H --> K
-
----
+```
 
 ## 🛠️ 技术栈
 
