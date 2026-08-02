@@ -5,7 +5,8 @@
 #include "thememanager.h"
 #include "core/datamanager.h"
 #include "trendwidget.h"
-#include "wavewidget.h" 
+#include "wavewidget.h"
+#include "core/hardware_sensor.h" 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -57,6 +58,10 @@ PatientMonitor::PatientMonitor(QWidget *parent)
     m_storeTimer->start(10000);
 
     updateLastMeasurement();
+
+    updateDataModeLabel();
+    connect(&HardwareSensor::instance(), &HardwareSensor::readyChanged,
+            this, &PatientMonitor::updateDataModeLabel);
 }
 
 PatientMonitor::~PatientMonitor()
@@ -79,6 +84,23 @@ void PatientMonitor::setupUI()
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(16);
     mainLayout->setContentsMargins(24, 20, 24, 20);
+
+    // ===== 模式提示标签（仅模拟模式显示） =====
+    m_modeLabel = new QLabel(this);
+    m_modeLabel->setText("🔬 模拟数据");
+    m_modeLabel->setAlignment(Qt::AlignCenter);
+    m_modeLabel->setFont(QFont("", 14, QFont::Bold));
+    m_modeLabel->setStyleSheet(
+        "QLabel {"
+        "  background-color: rgba(255, 165, 0, 0.12);"
+        "  border: 1px solid #ff8c00;"
+        "  border-radius: 10px;"
+        "  padding: 4px 12px;"
+        "  color: #e65100;"
+        "}"
+    );
+    m_modeLabel->setVisible(false);  // 默认隐藏
+    mainLayout->addWidget(m_modeLabel, 0, Qt::AlignCenter);
 
     // 波形
     waveWidget = new WaveWidget(this);
@@ -255,6 +277,15 @@ void PatientMonitor::updateTheme()
     if (waveWidget) waveWidget->update();
 }
 
+void PatientMonitor::updateDataModeLabel()
+{
+    if (!m_modeLabel) return;
+
+    // 如果硬件传感器未就绪（模拟模式），显示提示；否则隐藏
+    bool isReal = HardwareSensor::instance().isReady();
+    m_modeLabel->setVisible(!isReal);
+}
+
 void PatientMonitor::onDataReceived(const VitalSigns &data)
 {
     hrLCD->display(static_cast<int>(data.heartRate));
@@ -286,8 +317,10 @@ void PatientMonitor::onDataReceived(const VitalSigns &data)
             alarmLight->setStyleSheet("background-color: #f44336; border-radius: 25px;");
         }
     } else {
-        if (m_blinkTimer && m_blinkTimer->isActive()) {
+        if (m_blinkTimer) {
             m_blinkTimer->stop();
+            delete m_blinkTimer;
+            m_blinkTimer = nullptr;
         }
         alarmLight->setStyleSheet("background-color: #4caf50; border-radius: 25px;");
     }

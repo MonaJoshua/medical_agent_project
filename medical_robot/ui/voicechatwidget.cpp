@@ -68,7 +68,7 @@ VoiceChatWidget::VoiceChatWidget(QWidget *parent)
 
     // 欢迎消息
     QString welcome = QStringLiteral(
-        "<div style='font-size:16px;'>"
+        "<div style='font-size:18px;'>"
         "👋 你好！我是你的医疗助手。<br><br>"
         "💬 你可以这样与我互动：<br>"
         "• <b>健康咨询</b>：直接描述你的健康问题（如“熬夜有什么危害？”）<br>"
@@ -124,7 +124,7 @@ void VoiceChatWidget::setupUI()
     m_voiceToggleBtn->setCheckable(true);
     m_voiceToggleBtn->setChecked(false);
     m_voiceToggleBtn->setFixedHeight(36);
-    m_voiceToggleBtn->setFont(QFont("", 12));
+    m_voiceToggleBtn->setFont(QFont("", 14));
     connect(m_voiceToggleBtn, &QPushButton::clicked, this, &VoiceChatWidget::onVoiceToggleClicked);
     topLayout->addWidget(m_voiceToggleBtn);
 
@@ -144,7 +144,7 @@ void VoiceChatWidget::setupUI()
 
     // 聊天列表
     chatList = new QListWidget();
-    chatList->setFont(QFont("", 14));
+    chatList->setFont(QFont("", 18));
     chatList->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     chatList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     chatList->setSelectionMode(QAbstractItemView::NoSelection);
@@ -155,7 +155,7 @@ void VoiceChatWidget::setupUI()
 
     // 底部输入区域
     QHBoxLayout *inputLayout = new QHBoxLayout();
-    inputLayout->setSpacing(8);
+    inputLayout->setSpacing(10);
 
     voiceBtn = new QPushButton("🎤");
     voiceBtn->setObjectName("voiceBtn");
@@ -165,7 +165,7 @@ void VoiceChatWidget::setupUI()
 
     textInput = new QLineEdit();
     textInput->setPlaceholderText("描述你的症状或说出指令...");
-    textInput->setFont(QFont("", 15));
+    textInput->setFont(QFont("", 16));
     connect(textInput, &QLineEdit::returnPressed, this, &VoiceChatWidget::onTextReturnPressed);
     inputLayout->addWidget(textInput, 1);
 
@@ -281,8 +281,6 @@ void VoiceChatWidget::onRecordingFinished(int exitCode, QProcess::ExitStatus sta
         return;
     }
 
-    qDebug() << "录音文件生成，大小：" << file.size() << "字节";
-
     // 尝试用 ffmpeg 增益
     QString gainFile = QDir::tempPath() + "/voice_gain_" +
                        QString::number(QDateTime::currentMSecsSinceEpoch()) + ".wav";
@@ -305,7 +303,6 @@ void VoiceChatWidget::onRecordingFinished(int exitCode, QProcess::ExitStatus sta
 }
 
 // ----- 语音识别回调 -----
-
 void VoiceChatWidget::onVoiceRecognized(const QString &text)
 {
     if (!text.trimmed().isEmpty()) {
@@ -372,20 +369,20 @@ void VoiceChatWidget::addChatMessage(const ChatMessage &msg)
     if (msg.type == ChatMessageType::User) {
         QString bg = m_isDarkMode ? "#1a73e8" : "#d2e3fc";
         QString color = m_isDarkMode ? "#ffffff" : "#1a1a1a";
-        label->setStyleSheet(QString("background-color: %1; border-radius: 12px; padding: 8px 12px; color: %2;").arg(bg, color));
+        label->setStyleSheet(QString("background-color: %1; border-radius: 12px; padding: 8px 12px; color: %2; font-size: 18px;").arg(bg, color));
         layout->addStretch();
         layout->addWidget(label);
     } else if (msg.type == ChatMessageType::Card) {
         QString bg = m_isDarkMode ? "#1e3a2a" : "#e6f4ea";
         QString color = m_isDarkMode ? "#e8e8e8" : "#2c3e50";
-        label->setStyleSheet(QString("background-color: %1; border: 2px solid #34a853; border-radius: 12px; padding: 12px 16px; color: %2;").arg(bg, color));
+        label->setStyleSheet(QString("background-color: %1; border: 2px solid #34a853; border-radius: 12px; padding: 12px 16px; color: %2; font-size: 18px;").arg(bg, color));
         layout->addWidget(label);
         layout->addStretch();
     } else {
         QString bg = m_isDarkMode ? "#2d2d2d" : "#ffffff";
         QString border = m_isDarkMode ? "#444444" : "#e0e0e0";
         QString color = m_isDarkMode ? "#e8e8e8" : "#2c3e50";
-        label->setStyleSheet(QString("background-color: %1; border: 1px solid %2; border-radius: 12px; padding: 8px 12px; color: %3;").arg(bg, border, color));
+        label->setStyleSheet(QString("background-color: %1; border: 1px solid %2; border-radius: 12px; padding: 8px 12px; color: %3; font-size: 18px;").arg(bg, border, color));
         layout->addWidget(label);
         layout->addStretch();
     }
@@ -844,7 +841,7 @@ void VoiceChatWidget::executeHelp()
     QString helpText = QString(
         "<div style='background-color: %1; border: 1px solid %2; border-radius: 12px; padding: 16px 20px; margin: 4px 0; line-height: 1.6;'>"
         "<div style='font-size: 18px; font-weight: bold; color: %3; margin-bottom: 8px;'>功能介绍</div>"
-        "<div style='font-size: 14px; color: %4;'>"
+        "<div style='font-size: 16px; color: %4;'>"
         "你可以使用 <b>语音</b> 或 <b>文字</b> 交互。<br><br>"
         "<b>📋 挂号：</b> 预约挂号<br>"
         "<span style='padding-left: 20px; color: %5;'>例如：\"挂神经内科\"</span><br>"
@@ -854,7 +851,7 @@ void VoiceChatWidget::executeHelp()
         "<span style='padding-left: 20px; color: %5;'>例如：\"我的记录\"</span><br>"
         "<b>🔄 重置：</b> 重新开始<br>"
         "</div>"
-        "<div style='margin-top: 10px; padding-top: 8px; border-top: 1px solid %6; color: %7; font-size: 13px;'>"
+        "<div style='margin-top: 10px; padding-top: 8px; border-top: 1px solid %6; color: %7; font-size: 14px;'>"
         "👇 按下麦克风按钮或在输入框中输入"
         "</div>"
         "</div>"

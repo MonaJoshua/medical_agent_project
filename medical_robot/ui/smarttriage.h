@@ -18,7 +18,6 @@ public:
 private slots:
     void onDeptButtonClicked(QAbstractButton *button);
     void onRegisterClicked();
-    void onReplyFinished(QNetworkReply *reply);
     void onDepartmentRefreshClicked();
 
 private:

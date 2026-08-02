@@ -1,4 +1,5 @@
 #include "datamanager.h"
+#include "hardware_sensor.h"
 #include <QRandomGenerator>
 #include <QDateTime> 
 DataManager& DataManager::instance()
@@ -17,7 +18,9 @@ DataManager::~DataManager() {}
 
 void DataManager::recordOnce()
 {
-    VitalSigns data = generateSimulatedData();
+    VitalSigns data = HardwareSensor::instance().isReady() 
+                      ? readRealSensorData() 
+                      : generateSimulatedData();
     data.timestamp = QDateTime::currentMSecsSinceEpoch();
     emit newDataAvailable(data);
 }
@@ -42,4 +45,9 @@ VitalSigns DataManager::generateSimulatedData()
     
     // timestamp 由 recordOnce 设置，这里不赋值
     return data;
+}
+
+VitalSigns DataManager::readRealSensorData()
+{
+    return HardwareSensor::instance().readOnce();
 }

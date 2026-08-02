@@ -1,5 +1,5 @@
 /* ============================================================
-   全局浅色主题（优化版）
+   全局浅色主题
    ============================================================ */
 
 /* ---------- 基础背景 ---------- */
@@ -42,7 +42,7 @@ QLineEdit {
     border: 2px solid #d5e4ed;
     border-radius: 20px;
     padding: 8px 16px;
-    font-size: 16px;
+    font-size: 18px;
     color: #1a1a1a;
 }
 QLineEdit:focus {
@@ -69,7 +69,7 @@ QPushButton#sendBtn {
     color: white;
     border: none;
     border-radius: 20px;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: bold;
     padding: 8px 20px;
     min-height: 36px;
@@ -84,7 +84,7 @@ QPushButton#helpBtn {
     color: #1a73e8;
     border: 2px solid #1a73e8;
     border-radius: 20px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: bold;
     padding: 6px 16px;
     min-height: 36px;
@@ -99,7 +99,7 @@ QPushButton#resetBtn {
     color: #d93025;
     border: 2px solid #d93025;
     border-radius: 20px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: bold;
     padding: 6px 16px;
     min-height: 36px;
@@ -114,7 +114,7 @@ QPushButton#voiceToggleBtn {
     color: #34a853;
     border: 2px solid #34a853;
     border-radius: 20px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: bold;
     padding: 6px 16px;
     min-height: 36px;
@@ -182,7 +182,7 @@ SmartTriage QPushButton {
     border-radius: 8px;
     padding: 8px 12px;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 16px;
     color: #1a1a1a;
 }
 SmartTriage QPushButton:hover {
@@ -203,7 +203,7 @@ SmartTriage #registerBtn {
     border-radius: 8px;
     padding: 6px 16px;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 16px;
     min-height: 30px;
 }
 SmartTriage #registerBtn:hover {
@@ -221,7 +221,7 @@ SmartTriage #refreshDeptBtn {
     border-radius: 6px;
     padding: 6px 12px;
     font-weight: bold;
-    font-size: 13px;
+    font-size: 16px;
 }
 SmartTriage #refreshDeptBtn:hover {
     background-color: #d2e3fc;
@@ -254,7 +254,7 @@ SmartTriage #resultBrowser {
     border-radius: 10px;
     padding: 12px;
     color: #2c3e50;
-    font-size: 14px;
+    font-size: 16px;
 }
 SmartTriage #resultBrowser:focus {
     border-color: #7ab8d9;

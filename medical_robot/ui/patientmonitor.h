@@ -47,6 +47,7 @@ private:
     void updateLastMeasurement();
     void showAlarmSettings();
     void showParameterTrend(const QString &paramName);
+    void updateDataModeLabel();
 
     WaveWidget *waveWidget; 
     QLCDNumber *hrLCD;
@@ -58,17 +59,16 @@ private:
     QLabel *alarmLight;
     QPushButton *alarmSettingsBtn;
     QPushButton *startBtn; 
-
     QTimer *m_collectTimer;
     bool m_isCollecting;
     int m_collectInterval;
     QTimer *m_blinkTimer;
     QTimer *m_storeTimer;
+    QLabel *m_modeLabel;
 
     QList<VitalSigns> m_currentSessionData;
     QList<VitalSigns> m_dataBuffer;
     AlarmThresholds m_thresholds;
-
     QPointer<TrendWidget> m_trendWindow;
 };
 

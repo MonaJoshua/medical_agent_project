@@ -27,6 +27,7 @@ private:
     ~DataManager();
 
     VitalSigns generateSimulatedData();
+    VitalSigns readRealSensorData(); 
 };
 
 #endif // DATAMANAGER_H

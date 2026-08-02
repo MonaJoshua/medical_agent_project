@@ -109,9 +109,6 @@ SmartTriage::SmartTriage(QWidget *parent)
     mainLayout->addWidget(resultCard);
     mainLayout->addStretch();
 
-    connect(networkManager, &QNetworkAccessManager::finished,
-            this, &SmartTriage::onReplyFinished);
-
     // 启动后加载科室
     QTimer::singleShot(200, this, &SmartTriage::loadDepartments);
 }
@@ -266,42 +263,39 @@ void SmartTriage::onRegisterClicked()
     body["patient_name"] = "用户";
     body["symptoms"] = "一键挂号";
 
-    networkManager->post(request, QJsonDocument(body).toJson());
-}
+    QNetworkReply *reply = networkManager->post(request, QJsonDocument(body).toJson());
+    
+    // 使用局部 lambda 处理挂号响应
+    connect(reply, &QNetworkReply::finished, [this, reply]() {
+        registerBtn->setEnabled(true);
+        registerBtn->setText("确认挂号");
 
-// 网络请求完成
-void SmartTriage::onReplyFinished(QNetworkReply *reply)
-{
-    registerBtn->setEnabled(true);
-    registerBtn->setText("确认挂号");
+        if (reply->error() != QNetworkReply::NoError) {
+            resultBrowser->setHtml(buildErrorHtml(reply->errorString()));
+            reply->deleteLater();
+            return;
+        }
 
-    if (!reply) return;
-
-    if (reply->error() != QNetworkReply::NoError) {
-        resultBrowser->setHtml(buildErrorHtml(reply->errorString()));
+        QByteArray data = reply->readAll();
+        QJsonDocument doc = QJsonDocument::fromJson(data);
         reply->deleteLater();
-        return;
-    }
 
-    QByteArray data = reply->readAll();
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    reply->deleteLater();
+        if (doc.isNull() || !doc.isObject()) {
+            resultBrowser->setHtml(buildErrorHtml("解析响应失败"));
+            return;
+        }
 
-    if (doc.isNull() || !doc.isObject()) {
-        resultBrowser->setHtml(buildErrorHtml("解析响应失败"));
-        return;
-    }
-
-    QJsonObject obj = doc.object();
-    if (obj["success"].toBool()) {
-        resultBrowser->setHtml(buildSuccessHtml(
-            obj["department"].toString(),
-            obj["ticket_id"].toString(),
-            obj["queue_number"].toInt()
-        ));
-    } else {
-        resultBrowser->setHtml(buildErrorHtml(obj["message"].toString("未知错误")));
-    }
+        QJsonObject obj = doc.object();
+        if (obj["success"].toBool()) {
+            resultBrowser->setHtml(buildSuccessHtml(
+                obj["department"].toString(),
+                obj["ticket_id"].toString(),
+                obj["queue_number"].toInt()
+            ));
+        } else {
+            resultBrowser->setHtml(buildErrorHtml(obj["message"].toString("未知错误")));
+        }
+    });
 }
 
 // 构造成功 HTML

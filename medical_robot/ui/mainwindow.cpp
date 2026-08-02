@@ -24,7 +24,7 @@ MainWindow::MainWindow(QWidget *parent)
     , darkModeBtn(nullptr)
     , m_isDarkMode(false)
 {
-    setWindowTitle("智能医疗机器人");
+    setWindowTitle("智能就医助手");
     resize(1000, 750);
 
     // ----- Tab 控件 -----
@@ -120,7 +120,7 @@ void MainWindow::createTrayIcon()
 {
     trayIcon = new QSystemTrayIcon(this);
     trayIcon->setIcon(QIcon::fromTheme("applications-games", QIcon()));
-    trayIcon->setToolTip("智能医疗机器人");
+    trayIcon->setToolTip("智能就医助手");
 
     trayMenu = new QMenu(this);
     QAction *showAction = trayMenu->addAction("显示窗口");

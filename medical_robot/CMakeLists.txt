@@ -24,6 +24,8 @@ set(SOURCES
     ui/monitordatawidget.cpp
     core/config.cpp
     core/datamanager.cpp
+    core/datastorage.cpp
+    core/hardware_sensor.cpp
     network/apiclient.cpp
     network/voicemanager.cpp
     thememanager.cpp
@@ -43,8 +45,8 @@ set(HEADERS
     ui/monitordatawidget.h
     core/config.h
     core/datamanager.h
-    core/datastorage.cpp
     core/datastorage.h
+    core/hardware_sensor.h
     network/apiclient.h
     network/voicemanager.h
     thememanager.h

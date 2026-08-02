@@ -1,5 +1,6 @@
 #include "ui/mainwindow.h"
 #include "thememanager.h"
+#include "core/hardware_sensor.h"
 #include <QApplication>
 #include <QMutex>
 #include <QFile>
@@ -43,11 +44,14 @@ int main(int argc, char *argv[])
     qInstallMessageHandler(messageHandler);
     QApplication app(argc, argv);
 
-    // 应用浅色主题
+    // 应用主题
     ThemeManager::instance().applyTheme(ThemeManager::Light);
+
+    // 尝试初始化硬件传感器（树莓派）
+    // 如果不在树莓派上运行，或者传感器未连接，会自动降级到模拟模式
+    HardwareSensor::instance().init();
 
     MainWindow window;
     window.show();
-
     return app.exec();
 }
