@@ -1,6 +1,6 @@
 # 🏥 智能就医助手
 
-> 为老年人/有需要人群设计的智慧医疗语音交互系统
+> 为老年人设计的智慧医疗语音交互系统
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Qt](https://img.shields.io/badge/Qt-5.15+-green.svg)](https://www.qt.io/)
